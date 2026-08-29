@@ -1,78 +1,98 @@
 # Agentic DAG & Telegram Bot Project
 
-This repository provides a lightweight framework for building **agentic AI workflows** that can:
+This repository provides a lightweight framework for agentic workflows that can:
 
-- **Define** a directed acyclic graph (DAG) of tasks or knowledge nodes.
-- **Interact** via a Telegram bot to add, inspect, and manage the DAG in real time.
-- **Visualise** the DAG using Mermaid JS syntax, which can be rendered in any Mermaid‑compatible viewer (e.g., VS Code preview, GitHub markdown, Mermaid Live Editor).
-
----
+- Define a directed acyclic graph (DAG) of tasks or knowledge nodes.
+- Interact through a Telegram bot to add, inspect, and manage the DAG.
+- Render the DAG as Mermaid JS syntax for compatible viewers.
+- Register Telegram chats for proactive human-review notifications.
 
 ## Directory Layout
 
-```
-/config/workspace/dag/
+```text
+agentic-dag/
 ├── src/
-│   ├── __init__.py
-│   ├── dag.py          # Core DAG implementation and persistence.
-│   ├── bot.py          # Telegram bot logic.
-│   ├── visualize.py    # Mermaid‑JS generation utilities.
-│   └── main.py         # Entry point to launch the bot.
-├── requirements.txt    # Python dependencies.
-└── README.md           # This file.
+│   ├── dag.py            # DAG persistence and the optional state-file override.
+│   ├── bot.py            # Telegram command handlers.
+│   ├── notifications.py  # Local registered-chat storage.
+│   ├── notify.py         # CLI sender for human-review notifications.
+│   ├── visualize.py      # Mermaid generation utilities.
+│   └── main.py           # Bot entry point.
+├── requirements.txt
+└── README.md
 ```
-
----
 
 ## Quick Start
 
-1. **Install dependencies**
+1. Install dependencies:
+
    ```bash
    python -m venv .venv
    source .venv/bin/activate
    pip install -r requirements.txt
    ```
 
-2. **Create a Telegram bot**
-   - Talk to `@BotFather` on Telegram, create a new bot, and obtain the **Bot Token**.
-   - Copy the token into a `.env` file (see the **Environment Variables** section below).
+2. Create a Telegram bot through `@BotFather`, then configure `TELEGRAM_BOT_TOKEN` as described below.
 
-3. **Run the bot**
+3. Start the bot:
+
    ```bash
    python -m src.main
    ```
-   The bot will start and listen for commands.
 
----
+4. In the Telegram chat that should receive human-review requests, send:
+
+   ```text
+   /register
+   ```
+
+   The bot stores that chat ID locally. Do not share the chat ID or bot token in source control.
 
 ## Environment Variables
 
-Create a `.env` file at the repository root containing:
+Create a `.env` file at the repository root. Only the token is required:
 
-```
+```dotenv
+# Required
 TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
+
+# Optional: defaults to ./dag_state.json beside this repository.
+DAG_STATE_FILE=/path/to/dag_state.json
+
+# Optional: defaults to a sibling workspace dag/telegram_notification_chat_ids.json path.
+TELEGRAM_NOTIFICATION_REGISTRY=/path/to/telegram_notification_chat_ids.json
+
+# Optional: defaults beside DAG_STATE_FILE as dag_export.json.
+DAG_EXPORT_FILE=/path/to/dag_export.json
 ```
 
-The bot loads this file via `python-dotenv`.
-
----
+`DAG_STATE_FILE` is useful when the tracker code and its persisted project state live in separate directories. The bot loads this file on startup and saves every DAG mutation back to the same path.
 
 ## Bot Commands
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcomes the user and shows available commands. |
-| `/add_node <node_id> <label>` | Adds a new node to the DAG. |
-| `/add_edge <from_id> <to_id>` | Adds a directed edge (must keep the graph acyclic). |
-| `/show` | Prints a concise text representation of the current DAG. |
-| `/visualize` | Replies with a Mermaid‑JS diagram string. Paste this string into any Mermaid viewer to see a graphical rendering. |
-| `/export` | Downloads the DAG as a JSON file for backup or external processing. |
+| `/start` | Welcomes the user and lists commands. |
+| `/register` | Registers the current Telegram chat for human-review notifications. Repeating it is safe. |
+| `/add_node <node_id> <label>` | Adds a node to the DAG. |
+| `/add_edge <from_id> <to_id>` | Adds a directed edge, provided the graph stays acyclic. |
+| `/show` | Prints a concise text representation of the DAG. |
+| `/visualize` | Replies with Mermaid JS syntax. |
+| `/export` | Sends the DAG JSON export; the destination is controlled by `DAG_EXPORT_FILE`. |
 
----
+## Human-Review Notifications
+
+After at least one chat has sent `/register`, send a notification from the repository root:
+
+```bash
+python -m src.notify "Action needed: review the current DAG task."
+```
+
+The command sends the message to every locally registered chat. It fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.
 
 ## Mermaid Visualization
 
-The `visualize.py` module converts the internal DAG representation to Mermaid syntax:
+`visualize.py` converts the graph to Mermaid syntax:
 
 ```mermaid
 flowchart TD
@@ -80,36 +100,12 @@ flowchart TD
     B --> C[End]
 ```
 
-Copy the generated string into a markdown file, the GitHub UI, or the **Mermaid Live Editor** to view the diagram.
-
----
+Use a Mermaid-compatible Markdown preview, GitHub, or Mermaid Live Editor to render the result.
 
 ## Persistence
 
-The DAG state is automatically saved to `dag_state.json` in the repository root after each mutation. The bot loads this file on startup, allowing you to resume work after restarts.
-
----
-
-## Development & Extensibility
-
-- **Custom node payloads** – Extend `DagNode` in `dag.py` to store additional metadata (e.g., timestamps, LLM prompts, results).
-- **Advanced visualisation** – Hook into `visualize.py` to add subgraph styling, colors, or HTML‑like labels.
-- **Integration with LangGraph** – The DAG structure mirrors the concepts used in the `langgraph-telegram-bot` repo, making it straightforward to replace the in‑memory DAG with a LangGraph checkpoint store for long‑term memory.
-
----
+The DAG is persisted as NetworkX node-link JSON. By default it is stored in `dag_state.json` at the repository root. Set `DAG_STATE_FILE` to place it elsewhere; node metadata can hold compact task labels as well as richer project context.
 
 ## License
 
-MIT – feel free to adapt and reuse for your own agentic AI projects.
-
----
-
-## Next Steps
-
-- Deploy the bot to a cloud container (Docker support is forthcoming).
-- Add rate‑limiting and security measures (e.g., restrict commands to authorized users).
-- Hook the DAG into a larger LLM‑driven workflow using `langgraph` or similar libraries.
-
----
-
-*This scaffold is inspired by the public repositories **`francescofano/langgraph-telegram-bot`** and **`drivly/agentic.md`**, adapting their ideas into a minimal, framework‑agnostic toolkit.*
+MIT
