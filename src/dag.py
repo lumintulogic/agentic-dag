@@ -2,10 +2,11 @@ import json
 import os
 import networkx as nx
 
-STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'dag_state.json')
+DEFAULT_STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'dag_state.json')
 
 class Dag:
     def __init__(self):
+        self.state_file = os.getenv('DAG_STATE_FILE', DEFAULT_STATE_FILE)
         self.graph = nx.DiGraph()
         self.load()
 
@@ -26,12 +27,12 @@ class Dag:
         return nx.readwrite.json_graph.node_link_data(self.graph)
 
     def save(self):
-        with open(STATE_FILE, "w") as f:
+        with open(self.state_file, "w") as f:
             json.dump(self.to_dict(), f, indent=2)
 
     def load(self):
-        if os.path.exists(STATE_FILE):
-            with open(STATE_FILE) as f:
+        if os.path.exists(self.state_file):
+            with open(self.state_file) as f:
                 data = json.load(f)
                 self.graph = nx.readwrite.json_graph.node_link_graph(data)
         else:
