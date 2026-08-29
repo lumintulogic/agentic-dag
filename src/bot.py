@@ -48,7 +48,7 @@ async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
         json.dump(dag.to_dict(), f, indent=2)
     await update.message.reply_document(open(export_path, 'rb'))
 
-async def main():
+def main():
     app = ApplicationBuilder().token(TOKEN).build()
     app.add_handler(CommandHandler('start', start))
     app.add_handler(CommandHandler('add_node', add_node))
@@ -56,8 +56,7 @@ async def main():
     app.add_handler(CommandHandler('show', show))
     app.add_handler(CommandHandler('visualize', visualize))
     app.add_handler(CommandHandler('export', export))
-    await app.run_polling()
+    app.run_polling()
 
-if __name__ == '__main__':
-    import asyncio
-    asyncio.run(main())
+if __name__ == "__main__":
+    main()
