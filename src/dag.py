@@ -1,8 +1,11 @@
 import json
 import os
+from datetime import datetime, timezone
+
 import networkx as nx
 
 DEFAULT_STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'dag_state.json')
+
 
 class Dag:
     def __init__(self):
@@ -23,6 +26,38 @@ class Dag:
             raise ValueError("Adding this edge would create a cycle")
         self.save()
 
+    def record_review_response(self, node_id: str, response: str, chat_id: int) -> str:
+        if node_id not in self.graph:
+            raise ValueError(f"Node {node_id} does not exist")
+        normalized = response.strip().lower()
+        if normalized.startswith(("approve", "approved", "yes", "go ahead", "proceed", "continue")):
+            status = "In Progress"
+            decision = "Approved"
+        elif normalized.startswith(("reject", "rejected", "no", "changes requested", "revise")):
+            status = "To Do"
+            decision = "Changes requested"
+        else:
+            status = "Review"
+            decision = "Review response"
+
+        node = self.graph.nodes[node_id]
+        title = node.get("deck", {}).get("card", {}).get("title")
+        if not title:
+            title = node.get("label", node_id)
+            for prefix in ("Backlog — ", "To Do — ", "In Progress — ", "Review — ", "Done — ", "Archived — "):
+                title = title.removeprefix(prefix)
+            title = title.split(" — Approved:")[0].split(" — Changes requested:")[0].split(" — Review response:")[0]
+        summary = " ".join(response.split())[:180]
+        node.setdefault("review_responses", []).append({
+            "chat_id": chat_id,
+            "received_at": datetime.now(timezone.utc).isoformat(),
+            "response": response,
+            "status": status,
+        })
+        node["label"] = f"{status} — {title} — {decision}: {summary}"
+        self.save()
+        return status
+
     def to_dict(self):
         return nx.readwrite.json_graph.node_link_data(self.graph)
 
@@ -40,4 +75,3 @@ class Dag:
 
     def __str__(self):
         return "\n".join([f"{n}: {self.graph.nodes[n].get('label','')}" for n in self.graph.nodes])
-

@@ -5,10 +5,10 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 from telegram import BotCommand, Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 
 from .dag import Dag
-from .notifications import register_chat_id
+from .notifications import consume_pending_review, register_chat_id
 
 load_dotenv()
 TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
@@ -30,6 +30,22 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
     added = register_chat_id(chat.id)
     message = 'This chat is registered for human-review notifications.' if added else 'This chat is already registered for notifications.'
     await update.message.reply_text(message)
+
+
+async def review_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.effective_message
+    if message is None or message.reply_to_message is None or not message.text:
+        return
+    review = consume_pending_review(message.chat_id, message.reply_to_message.message_id)
+    if review is None:
+        return
+    node_id = review['node_id']
+    try:
+        status = dag.record_review_response(node_id, message.text, message.chat_id)
+    except ValueError as error:
+        await message.reply_text(f'Could not record this review: {error}')
+        return
+    await message.reply_text(f'Recorded your response for {node_id}. Status is now {status}.')
 
 
 async def add_node(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -62,7 +78,7 @@ async def visualize(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def export(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    export_path = os.path.join(os.path.dirname(__file__), '..', '..', 'dag', 'dag_export.json')
+    export_path = os.getenv("DAG_EXPORT_FILE", str(Path(dag.state_file).with_name("dag_export.json")))
     with open(export_path, 'w') as f:
         json.dump(dag.to_dict(), f, indent=2)
     await update.message.reply_document(open(export_path, 'rb'))
@@ -77,6 +93,7 @@ def main():
     app.add_handler(CommandHandler('show', show))
     app.add_handler(CommandHandler('visualize', visualize))
     app.add_handler(CommandHandler('export', export))
+    app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, review_reply))
     app.run_polling()
 
 
