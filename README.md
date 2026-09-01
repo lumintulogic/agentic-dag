@@ -90,6 +90,8 @@ python -m src.notify <node_id> "Action needed: review the current DAG task."
 
 The command sends a task-linked message to every locally registered chat and records each sent message ID locally. Reply directly to that notification: replies beginning with `approved`, `yes`, `proceed`, or `continue` move the node to `In Progress`; replies beginning with `rejected`, `no`, `changes requested`, or `revise` move it to `To Do`; every other reply is recorded while the node stays in `Review`. The command fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.
 
+The sender emits flushed UTC diagnostics for `send_started`, Telegram acceptance, reply-mapping registration, and completion. They include the DAG node and Telegram message ID, but never a chat ID, bot token, or notification body. A failed send or mapping registration exits non-zero immediately after attempting the remaining registered recipients.
+
 ## Mermaid Visualization
 
 `visualize.py` converts the graph to Mermaid syntax:
