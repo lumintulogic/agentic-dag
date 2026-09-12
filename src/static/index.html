@@ -1099,7 +1099,7 @@
 
         async function fetchDAG() {
             try {
-                const res = await fetch('/api/dag');
+                const res = await fetch('api/dag');
                 if (!res.ok) throw new Error('Failed to fetch DAG');
                 const data = await res.json();
                 
@@ -1117,7 +1117,7 @@
 
         async function fetchTelegramStatus() {
             try {
-                const res = await fetch('/api/telegram/status');
+                const res = await fetch('api/telegram/status');
                 if (!res.ok) throw new Error('Failed to fetch TG status');
                 tgStatus = await res.json();
                 updateTelegramUI();
@@ -1133,7 +1133,7 @@
             const label = document.getElementById('node-label').value.trim();
             
             try {
-                const res = await fetch('/api/dag/nodes', {
+                const res = await fetch('api/dag/nodes', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id, label })
@@ -1150,7 +1150,7 @@
 
         async function deleteNode(id) {
             try {
-                const res = await fetch(`/api/dag/nodes/${id}`, { method: 'DELETE' });
+                const res = await fetch(`api/dag/nodes/${id}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error(await res.text());
                 
                 showToast(`Node ${id} deleted`, 'success');
@@ -1162,7 +1162,7 @@
 
         async function updateNode(id, label) {
             try {
-                const res = await fetch(`/api/dag/nodes/${id}`, {
+                const res = await fetch(`api/dag/nodes/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ label })
@@ -1187,7 +1187,7 @@
             }
             
             try {
-                const res = await fetch('/api/dag/edges', {
+                const res = await fetch('api/dag/edges', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ source, target })
@@ -1204,7 +1204,7 @@
 
         async function deleteEdge(source, target) {
             try {
-                const res = await fetch(`/api/dag/edges?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`, { 
+                const res = await fetch(`api/dag/edges?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`, {
                     method: 'DELETE' 
                 });
                 if (!res.ok) throw new Error(await res.text());
@@ -1218,7 +1218,7 @@
 
         async function startTelegramBot() {
             try {
-                const res = await fetch('/api/telegram/start', { method: 'POST' });
+                const res = await fetch('api/telegram/start', { method: 'POST' });
                 if (!res.ok) throw new Error(await res.text());
                 showToast('Telegram bot started', 'success');
                 fetchTelegramStatus();
@@ -1229,7 +1229,7 @@
 
         async function stopTelegramBot() {
             try {
-                const res = await fetch('/api/telegram/stop', { method: 'POST' });
+                const res = await fetch('api/telegram/stop', { method: 'POST' });
                 if (!res.ok) throw new Error(await res.text());
                 showToast('Telegram bot stopped', 'success');
                 fetchTelegramStatus();
@@ -1241,7 +1241,7 @@
         async function removeChat(chatId) {
             if (!confirm(`Remove chat ID ${chatId}?`)) return;
             try {
-                const res = await fetch(`/api/telegram/chats/${chatId}`, { method: 'DELETE' });
+                const res = await fetch(`api/telegram/chats/${chatId}`, { method: 'DELETE' });
                 if (!res.ok) throw new Error(await res.text());
                 showToast('Chat removed', 'success');
                 fetchTelegramStatus();
@@ -1259,7 +1259,7 @@
             if (node_id) payload.node_id = node_id;
             
             try {
-                const res = await fetch('/api/telegram/notify', {
+                const res = await fetch('api/telegram/notify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
@@ -1286,7 +1286,7 @@
 
         async function fetchStateFile() {
             try {
-                const res = await fetch('/api/config/state-file');
+                const res = await fetch('api/config/state-file');
                 if (!res.ok) throw new Error('Failed to fetch state file path');
                 const data = await res.json();
                 document.getElementById('state-file-path').value = data.path;
@@ -1304,7 +1304,7 @@
             if (!path) return;
 
             try {
-                const res = await fetch('/api/config/state-file', {
+                const res = await fetch('api/config/state-file', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ path })
@@ -1334,7 +1334,7 @@
             if (defaultStateFilePath) {
                 document.getElementById('state-file-path').value = defaultStateFilePath;
                 try {
-                    const res = await fetch('/api/config/state-file', {
+                    const res = await fetch('api/config/state-file', {
                         method: 'PUT',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ path: defaultStateFilePath })
