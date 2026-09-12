@@ -38,14 +38,21 @@
         #status { color: #a0a0b8; margin: 0 0 1rem; }
         #diagram {
             min-height: 70vh;
-            overflow: auto;
-            padding: 1.5rem;
+            height: 70vh;
+            overflow: hidden;
             border: 1px solid #3a3b5c;
             border-radius: 6px;
             background: #252641;
         }
-        #diagram svg { display: block; margin: auto; max-width: none !important; height: auto; }
-        #diagram.fit-width svg { width: 100% !important; max-width: 100% !important; }
+        #diagram svg.pan-zoom {
+            display: block;
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            cursor: grab;
+            touch-action: none;
+        }
+        #diagram svg.pan-zoom.dragging { cursor: grabbing; }
         details { margin-top: 1rem; }
         pre {
             overflow: auto;
@@ -64,7 +71,9 @@
             <a id="control-panel">Control Panel</a>
             <a id="graph-canvas">Graph Canvas</a>
             <a id="raw-mermaid" target="_blank" rel="noopener">Raw Mermaid</a>
-            <button id="fit-width" type="button">Fit to Width</button>
+            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+            <button id="reset-view" type="button">Reset View</button>
             <button id="refresh" type="button">Refresh</button>
         </div>
     </header>
@@ -93,8 +102,8 @@
         const rawMermaid = document.getElementById('raw-mermaid');
         const controlPanel = document.getElementById('control-panel');
         const graphCanvas = document.getElementById('graph-canvas');
-        const fitWidth = document.getElementById('fit-width');
         let renderVersion = 0;
+        let panZoom = null;
 
         function appBasePath() {
             return window.location.pathname
@@ -108,10 +117,76 @@
         controlPanel.href = appBasePath();
         graphCanvas.href = `${appBasePath()}graph`;
 
-        fitWidth.addEventListener('click', () => {
-            const fitting = diagram.classList.toggle('fit-width');
-            fitWidth.textContent = fitting ? 'Full Size' : 'Fit to Width';
-        });
+        function parseViewBox(svg) {
+            const values = (svg.getAttribute('viewBox') || '').trim().split(/[ ,]+/).map(Number);
+            if (values.length === 4 && values.every(Number.isFinite)) return values;
+            const box = svg.getBBox();
+            return [box.x, box.y, box.width || 1, box.height || 1];
+        }
+
+        function setViewBox() {
+            const { svg, viewBox } = panZoom;
+            svg.setAttribute('viewBox', viewBox.join(' '));
+        }
+
+        function zoomAt(factor, clientX, clientY) {
+            const { svg, viewBox, initial } = panZoom;
+            const rect = svg.getBoundingClientRect();
+            const pointX = clientX === undefined ? rect.left + rect.width / 2 : clientX;
+            const pointY = clientY === undefined ? rect.top + rect.height / 2 : clientY;
+            const x = viewBox[0] + (pointX - rect.left) / rect.width * viewBox[2];
+            const y = viewBox[1] + (pointY - rect.top) / rect.height * viewBox[3];
+            const minimumWidth = initial[2] / 30;
+            const maximumWidth = initial[2] * 10;
+            const nextWidth = Math.max(minimumWidth, Math.min(maximumWidth, viewBox[2] * factor));
+            const actualFactor = nextWidth / viewBox[2];
+            const nextHeight = viewBox[3] * actualFactor;
+            viewBox[0] = x - (x - viewBox[0]) * actualFactor;
+            viewBox[1] = y - (y - viewBox[1]) * actualFactor;
+            viewBox[2] = nextWidth;
+            viewBox[3] = nextHeight;
+            setViewBox();
+        }
+
+        function initializePanZoom(svg) {
+            const initial = parseViewBox(svg);
+            panZoom = { svg, initial, viewBox: [...initial] };
+            svg.classList.add('pan-zoom');
+            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+            setViewBox();
+
+            let lastPoint = null;
+            svg.addEventListener('wheel', event => {
+                event.preventDefault();
+                zoomAt(event.deltaY < 0 ? .8 : 1.25, event.clientX, event.clientY);
+            }, { passive: false });
+            svg.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                lastPoint = { x: event.clientX, y: event.clientY };
+                svg.setPointerCapture(event.pointerId);
+                svg.classList.add('dragging');
+            });
+            svg.addEventListener('pointermove', event => {
+                if (!lastPoint) return;
+                const rect = svg.getBoundingClientRect();
+                panZoom.viewBox[0] -= (event.clientX - lastPoint.x) / rect.width * panZoom.viewBox[2];
+                panZoom.viewBox[1] -= (event.clientY - lastPoint.y) / rect.height * panZoom.viewBox[3];
+                lastPoint = { x: event.clientX, y: event.clientY };
+                setViewBox();
+            });
+            const endPan = () => {
+                lastPoint = null;
+                svg.classList.remove('dragging');
+            };
+            svg.addEventListener('pointerup', endPan);
+            svg.addEventListener('pointercancel', endPan);
+        }
+
+        function resetView() {
+            if (!panZoom) return;
+            panZoom.viewBox = [...panZoom.initial];
+            setViewBox();
+        }
 
         async function renderDiagram() {
             status.classList.remove('error');
@@ -129,7 +204,8 @@
                 );
                 diagram.innerHTML = svg;
                 bindFunctions?.(diagram);
-                status.textContent = 'Diagram rendered from the current DAG.';
+                initializePanZoom(diagram.querySelector('svg'));
+                status.textContent = 'Diagram rendered. Scroll to zoom and drag to pan.';
             } catch (error) {
                 status.classList.add('error');
                 status.textContent = `Could not render the diagram: ${error.message}`;
@@ -137,6 +213,9 @@
         }
 
         document.getElementById('refresh').addEventListener('click', renderDiagram);
+        document.getElementById('zoom-in').addEventListener('click', () => panZoom && zoomAt(.8));
+        document.getElementById('zoom-out').addEventListener('click', () => panZoom && zoomAt(1.25));
+        document.getElementById('reset-view').addEventListener('click', resetView);
         renderDiagram();
     </script>
 </body>
