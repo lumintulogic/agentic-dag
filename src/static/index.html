@@ -1,0 +1,1410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAG Control Panel</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1a1b2e;
+            --bg-secondary: #252641;
+            --bg-tertiary: #2d2f4e;
+            --text-primary: #e8e8f0;
+            --text-secondary: #a0a0b8;
+            --accent: #6c5ce7;
+            --accent-hover: #7c6ef7;
+            --success: #00b894;
+            --warning: #fdcb6e;
+            --danger: #e17055;
+            --border: #3a3b5c;
+            --font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: var(--font-family);
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1.5rem;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            height: 60px;
+            flex-shrink: 0;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--danger);
+        }
+        .dot.running {
+            background-color: var(--success);
+        }
+
+        /* Buttons */
+        button {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: var(--font-family);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--border);
+        }
+
+        button.primary {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+
+        button.primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        button.danger {
+            background-color: rgba(225, 112, 85, 0.2);
+            color: var(--danger);
+            border-color: rgba(225, 112, 85, 0.5);
+        }
+        button.danger:hover {
+            background-color: var(--danger);
+            color: white;
+        }
+        
+        button.success {
+            background-color: rgba(0, 184, 148, 0.2);
+            color: var(--success);
+            border-color: rgba(0, 184, 148, 0.5);
+        }
+        button.success:hover {
+            background-color: var(--success);
+            color: white;
+        }
+
+        /* Main Content */
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Left Column - DAG */
+        .left-col {
+            width: 60%;
+            position: relative;
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        #dag-container {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* Right Column - Controls */
+        .right-col {
+            width: 40%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-secondary);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            background-color: var(--bg-primary);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 1rem;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            border-radius: 0;
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-align: center;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-content {
+            display: none;
+            padding: 1.5rem;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Forms and Inputs */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        input[type="text"], select, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: var(--font-family);
+            font-size: 0.95rem;
+        }
+
+        input[type="text"]:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Lists */
+        .list-container {
+            margin-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            padding-top: 1.5rem;
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .search-box {
+            margin-bottom: 1rem;
+        }
+
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem;
+            background-color: var(--bg-tertiary);
+            border-radius: 4px;
+            margin-bottom: 0.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .list-item-content {
+            flex: 1;
+            overflow: hidden;
+            margin-right: 1rem;
+        }
+
+        .list-item-title {
+            font-weight: 500;
+            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .list-item-subtitle {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .list-item-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Bottom Bar */
+        .bottom-bar {
+            padding: 0.5rem 1.5rem;
+            background-color: var(--bg-primary);
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* Toasts */
+        .toast-container {
+            position: fixed;
+            bottom: 40px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+            pointer-events: none;
+        }
+
+        .toast {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            padding: 1rem;
+            border-radius: 4px;
+            border-left: 4px solid var(--accent);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            min-width: 250px;
+            opacity: 0;
+            transform: translateX(50px);
+            transition: all 0.3s ease;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .toast.success { border-left-color: var(--success); }
+        .toast.error { border-left-color: var(--danger); }
+        .toast.warning { border-left-color: var(--warning); }
+
+        /* Context Menu */
+        .context-menu {
+            position: absolute;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            display: none;
+            z-index: 100;
+            min-width: 150px;
+        }
+
+        .context-menu ul {
+            list-style: none;
+            margin: 0;
+            padding: 0.25rem 0;
+        }
+
+        .context-menu li {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .context-menu li:hover {
+            background-color: var(--accent);
+            color: white;
+        }
+        
+        .context-menu li.danger-item:hover {
+            background-color: var(--danger);
+        }
+
+        /* SVG Styles */
+        .node rect {
+            stroke: var(--border);
+            stroke-width: 2px;
+            cursor: pointer;
+        }
+
+        .node text {
+            font-family: var(--font-family);
+            font-size: 12px;
+            fill: var(--text-primary);
+            pointer-events: none;
+        }
+
+        .node.selected rect {
+            stroke: var(--text-primary);
+            stroke-width: 3px;
+        }
+
+        .link {
+            stroke: var(--text-secondary);
+            stroke-opacity: 0.6;
+            fill: none;
+        }
+
+        /* Card for selected node */
+        .selected-node-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(37, 38, 65, 0.9);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            width: 300px;
+            display: none;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+        }
+        .selected-node-panel h3 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+        .selected-node-panel .detail-row {
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        .selected-node-panel .detail-label {
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+        .close-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+        .close-panel:hover {
+            color: var(--text-primary);
+        }
+        
+        .info-card {
+            background-color: var(--bg-tertiary);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+        }
+        .info-card h4 {
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header -->
+    <header>
+        <h1>DAG Control Panel</h1>
+        <div class="header-controls">
+            <div class="status-indicator" id="header-bot-status">
+                <div class="dot" id="header-dot"></div>
+                <span id="header-status-text">Bot Stopped</span>
+            </div>
+            <button id="btn-toggle-bot" class="success">Start Bot</button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        
+        <!-- Left Column -->
+        <div class="left-col" id="left-col">
+            <div id="dag-container"></div>
+            
+            <div class="selected-node-panel" id="selected-node-panel">
+                <span class="close-panel" onclick="closeNodePanel()">✕</span>
+                <h3>Node Details</h3>
+                <div class="detail-row">
+                    <span class="detail-label">ID:</span>
+                    <span id="detail-id"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Status:</span>
+                    <span id="detail-status"></span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Label:</span>
+                    <div id="detail-label" style="margin-top: 4px; word-break: break-word;"></div>
+                </div>
+            </div>
+            
+            <!-- Context Menu -->
+            <div class="context-menu" id="context-menu">
+                <ul>
+                    <li onclick="handleEditNode()">Edit Label</li>
+                    <li class="danger-item" onclick="handleDeleteNode()">Delete Node</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="right-col">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('nodes')">Nodes</button>
+                <button class="tab-btn" onclick="switchTab('edges')">Edges</button>
+                <button class="tab-btn" onclick="switchTab('telegram')">Telegram</button>
+                <button class="tab-btn" onclick="switchTab('settings')">⚙ Settings</button>
+            </div>
+
+            <!-- Nodes Tab -->
+            <div id="tab-nodes" class="tab-content active">
+                <h3>Add New Node</h3>
+                <form id="form-add-node" onsubmit="addNode(event)">
+                    <div class="form-group">
+                        <label for="node-id">Node ID</label>
+                        <input type="text" id="node-id" required placeholder="e.g., node_1">
+                    </div>
+                    <div class="form-group">
+                        <label for="node-label">Label</label>
+                        <input type="text" id="node-label" required placeholder="Status — Title — Decision: Summary">
+                    </div>
+                    <button type="submit" class="primary">Add Node</button>
+                </form>
+
+                <div class="list-container">
+                    <div class="list-header">
+                        <h3 style="margin:0">Nodes List</h3>
+                        <span id="node-count" style="color:var(--text-secondary); font-size: 0.9rem;">0 nodes</span>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="search-nodes" placeholder="Search nodes..." onkeyup="filterNodes()">
+                    </div>
+                    <div id="nodes-list">
+                        <!-- Node items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edges Tab -->
+            <div id="tab-edges" class="tab-content">
+                <h3>Add New Edge</h3>
+                <form id="form-add-edge" onsubmit="addEdge(event)">
+                    <div class="form-group">
+                        <label for="edge-source">Source Node</label>
+                        <select id="edge-source" required>
+                            <option value="">Select source...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="edge-target">Target Node</label>
+                        <select id="edge-target" required>
+                            <option value="">Select target...</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="primary">Add Edge</button>
+                </form>
+
+                <div class="list-container">
+                    <div class="list-header">
+                        <h3 style="margin:0">Edges List</h3>
+                        <span id="edge-count" style="color:var(--text-secondary); font-size: 0.9rem;">0 edges</span>
+                    </div>
+                    <div id="edges-list">
+                        <!-- Edge items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Telegram Tab -->
+            <div id="tab-telegram" class="tab-content">
+                <div class="info-card">
+                    <h4>Bot Status</h4>
+                    <div class="status-indicator" style="margin-bottom: 1rem; font-size: 1.1rem;">
+                        <div class="dot" id="tab-dot"></div>
+                        <span id="tab-status-text">Stopped</span>
+                    </div>
+                    <button id="btn-toggle-bot-tab" class="success" style="width: 100%;">Start Bot</button>
+                </div>
+                
+                <div class="info-card">
+                    <h4>Pending Reviews</h4>
+                    <div class="info-value" id="pending-reviews-count">0</div>
+                </div>
+
+                <h3>Send Notification</h3>
+                <form id="form-notify" onsubmit="sendNotification(event)">
+                    <div class="form-group">
+                        <label for="notify-node">Related Node (Optional)</label>
+                        <select id="notify-node">
+                            <option value="">None</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="notify-msg">Message</label>
+                        <textarea id="notify-msg" required placeholder="Type notification message here..."></textarea>
+                    </div>
+                    <button type="submit" class="primary">Send Notification</button>
+                </form>
+
+                <div class="list-container">
+                    <div class="list-header">
+                        <h3 style="margin:0">Registered Chats</h3>
+                        <span id="chat-count" style="color:var(--text-secondary); font-size: 0.9rem;">0 chats</span>
+                    </div>
+                    <div id="chats-list">
+                        <!-- Chat items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Tab -->
+            <div id="tab-settings" class="tab-content">
+                <h3>Configuration</h3>
+                <div class="info-card">
+                    <h4>DAG State File</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0;">
+                        Path to the JSON file where DAG nodes and edges are stored. Changes are saved in your browser's local storage and restored on reload.
+                    </p>
+                    <form id="form-state-file" onsubmit="setStateFile(event)">
+                        <div class="form-group">
+                            <label for="state-file-path">File Path</label>
+                            <input type="text" id="state-file-path" required placeholder="/path/to/dag_state.json">
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="submit" class="primary" style="flex: 1;">Apply</button>
+                            <button type="button" onclick="resetStateFile()" style="flex: 0;">Reset to Default</button>
+                        </div>
+                    </form>
+                    <div style="margin-top: 0.75rem; font-size: 0.8rem; color: var(--text-secondary);">
+                        Current: <code id="current-state-file" style="color: var(--accent);">—</code>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h4>Recent Files</h4>
+                    <div id="recent-files-list" style="font-size: 0.9rem;">
+                        <div style="color: var(--text-secondary); text-align: center;">No recent files</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="bottom-bar">
+        <span>DAG UI initialized</span>
+        <span id="last-refresh">Last refresh: Never</span>
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+        // State
+        let dagData = { nodes: [], edges: [] };
+        let nodeMap = new Map();
+        let selectedNodeId = null;
+        let contextMenuNode = null;
+        
+        let tgStatus = {
+            running: false,
+            chat_ids: [],
+            pending_reviews_count: 0,
+            token_configured: false
+        };
+
+        // Constants for colors based on status
+        const COLORS = {
+            "In Progress": "#0984e3", // blue
+            "To Do": "#fdcb6e",       // amber/yellow
+            "Review": "#6c5ce7",      // purple
+            "Done": "#00b894",        // green
+            "Backlog": "#b2bec3",     // gray
+            "Archived": "#636e72",    // dark gray
+            "Default": "#74b9ff"      // steel blue
+        };
+
+        // DOM Elements
+        const toastContainer = document.getElementById('toast-container');
+        const contextMenu = document.getElementById('context-menu');
+        const lastRefreshEl = document.getElementById('last-refresh');
+        
+        // D3 Setup
+        const container = document.getElementById('dag-container');
+        let width = container.clientWidth;
+        let height = container.clientHeight;
+        
+        const svg = d3.select("#dag-container").append("svg")
+            .attr("width", "100%")
+            .attr("height", "100%");
+            
+        // Setup defs for arrowheads
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "-0 -5 10 10")
+            .attr("refX", 10)
+            .attr("refY", 0)
+            .attr("orient", "auto")
+            .attr("markerWidth", 8)
+            .attr("markerHeight", 8)
+            .attr("xoverflow", "visible")
+            .append("svg:path")
+            .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+            .attr("fill", "var(--text-secondary)")
+            .style("stroke", "none");
+
+        const g = svg.append("g");
+        
+        // Zoom setup
+        const zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on("zoom", (event) => {
+                g.attr("transform", event.transform);
+                closeContextMenu();
+            });
+            
+        svg.call(zoom);
+        
+        // Simulation setup
+        const simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(d => d.id).distance(150))
+            .force("charge", d3.forceManyBody().strength(-500))
+            .force("center", d3.forceCenter(width / 2, height / 2))
+            .force("collide", d3.forceCollide().radius(60));
+
+        let link = g.append("g").attr("class", "links").selectAll(".link");
+        let node = g.append("g").attr("class", "nodes").selectAll(".node");
+        
+        // Resize observer
+        new ResizeObserver(() => {
+            width = container.clientWidth;
+            height = container.clientHeight;
+            simulation.force("center", d3.forceCenter(width / 2, height / 2));
+            simulation.alpha(0.3).restart();
+        }).observe(container);
+
+        // Helper: Extract Status
+        function getStatus(label) {
+            if (!label) return "Default";
+            const parts = label.split(" — ");
+            if (parts.length > 1) {
+                const status = parts[0].trim();
+                if (COLORS[status]) return status;
+            }
+            return "Default";
+        }
+        
+        function getNodeColor(label) {
+            return COLORS[getStatus(label)] || COLORS["Default"];
+        }
+
+        // --- Render Functions ---
+
+        function updateDAGViz() {
+            // Re-bind data
+            
+            // Map old node positions to new ones to avoid resetting layout
+            const oldNodes = new Map(node.data().map(d => [d.id, d]));
+            const newNodes = dagData.nodes.map(d => {
+                const old = oldNodes.get(d.id);
+                return old ? { ...d, x: old.x, y: old.y, vx: old.vx, vy: old.vy } : { ...d };
+            });
+            
+            // Links need object references instead of ids for D3
+            const newLinks = dagData.edges.map(d => ({
+                source: d.source,
+                target: d.target,
+                _sourceId: typeof d.source === 'object' ? d.source.id : d.source,
+                _targetId: typeof d.target === 'object' ? d.target.id : d.target
+            }));
+
+            // Update links
+            link = link.data(newLinks, d => `${d._sourceId}-${d._targetId}`);
+            link.exit().remove();
+            const linkEnter = link.enter().append("path")
+                .attr("class", "link")
+                .attr("marker-end", "url(#arrowhead)")
+                .attr("stroke-width", 2);
+            link = linkEnter.merge(link);
+
+            // Update nodes
+            node = node.data(newNodes, d => d.id);
+            node.exit().remove();
+            
+            const nodeEnter = node.enter().append("g")
+                .attr("class", "node")
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended))
+                .on("click", handleNodeClick)
+                .on("contextmenu", handleNodeContextMenu);
+
+            // Rectangles
+            nodeEnter.append("rect")
+                .attr("rx", 6)
+                .attr("ry", 6)
+                .attr("height", 30);
+                
+            // Text labels
+            nodeEnter.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "central")
+                .attr("y", 15);
+
+            node = nodeEnter.merge(node);
+            
+            // Update node attributes
+            node.classed("selected", d => d.id === selectedNodeId);
+            
+            // Compute dimensions based on text
+            node.select("text")
+                .text(d => d.label.length > 25 ? d.label.substring(0, 25) + '...' : d.label)
+                .each(function(d) {
+                    const bbox = this.getBBox();
+                    d.width = Math.max(100, bbox.width + 30);
+                });
+
+            node.select("rect")
+                .attr("width", d => d.width)
+                .attr("x", d => -d.width / 2)
+                .attr("fill", d => getNodeColor(d.label));
+                
+            node.select("text")
+                .attr("x", 0);
+
+            // Restart simulation
+            simulation.nodes(newNodes).on("tick", ticked);
+            simulation.force("link").links(newLinks);
+            simulation.alpha(0.3).restart();
+            
+            // Update UI Selects & Lists
+            updateNodeSelects();
+            renderNodesList();
+            renderEdgesList();
+        }
+
+        function ticked() {
+            // Path logic for link to stop at node boundaries roughly
+            link.attr("d", function(d) {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
+                
+                // If nodes are the same or too close
+                if (dr === 0) return "";
+                
+                const targetW = (d.target.width || 100) / 2 + 5;
+                const targetH = 15 + 5; // Half height + padding
+                
+                // Calculate intersection point (simplified)
+                const ratio = Math.min(targetW / Math.abs(dx), targetH / Math.abs(dy));
+                const endX = d.target.x - dx * ratio;
+                const endY = d.target.y - dy * ratio;
+                
+                return `M${d.source.x},${d.source.y} L${endX},${endY}`;
+            });
+
+            node.attr("transform", d => `translate(${d.x},${d.y - 15})`);
+        }
+
+        // D3 Drag handlers
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+            closeContextMenu();
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // D3 Interactions
+        function handleNodeClick(event, d) {
+            event.stopPropagation();
+            selectedNodeId = d.id;
+            updateDAGViz();
+            
+            // Update panel
+            document.getElementById('detail-id').innerText = d.id;
+            document.getElementById('detail-status').innerText = getStatus(d.label);
+            document.getElementById('detail-label').innerText = d.label;
+            document.getElementById('selected-node-panel').style.display = 'block';
+            
+            closeContextMenu();
+        }
+        
+        function closeNodePanel() {
+            selectedNodeId = null;
+            document.getElementById('selected-node-panel').style.display = 'none';
+            updateDAGViz();
+        }
+
+        function handleNodeContextMenu(event, d) {
+            event.preventDefault();
+            contextMenuNode = d;
+            
+            // Position menu
+            const containerRect = container.getBoundingClientRect();
+            let x = event.clientX - containerRect.left;
+            let y = event.clientY - containerRect.top;
+            
+            contextMenu.style.left = `${x}px`;
+            contextMenu.style.top = `${y}px`;
+            contextMenu.style.display = 'block';
+        }
+
+        function closeContextMenu() {
+            contextMenu.style.display = 'none';
+        }
+
+        svg.on("click", () => {
+            closeContextMenu();
+        });
+
+        // --- Context Menu Actions ---
+        function handleEditNode() {
+            if (!contextMenuNode) return;
+            const newLabel = prompt("Edit Label:", contextMenuNode.label);
+            if (newLabel !== null && newLabel.trim() !== "") {
+                updateNode(contextMenuNode.id, newLabel.trim());
+            }
+            closeContextMenu();
+        }
+
+        function handleDeleteNode() {
+            if (!contextMenuNode) return;
+            if (confirm(`Are you sure you want to delete node ${contextMenuNode.id}?`)) {
+                deleteNode(contextMenuNode.id);
+                if (selectedNodeId === contextMenuNode.id) {
+                    closeNodePanel();
+                }
+            }
+            closeContextMenu();
+        }
+
+        // --- Tab Switching ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+        }
+
+        // --- UI Updaters ---
+        function updateNodeSelects() {
+            const selects = [
+                document.getElementById('edge-source'),
+                document.getElementById('edge-target'),
+                document.getElementById('notify-node')
+            ];
+            
+            selects.forEach(select => {
+                if(!select) return;
+                const isNotify = select.id === 'notify-node';
+                const currentVal = select.value;
+                
+                let html = isNotify ? '<option value="">None</option>' : '<option value="">Select node...</option>';
+                dagData.nodes.forEach(n => {
+                    html += `<option value="${n.id}">${n.id} (${n.label.substring(0, 20)}...)</option>`;
+                });
+                select.innerHTML = html;
+                if (currentVal && dagData.nodes.find(n => n.id === currentVal)) {
+                    select.value = currentVal;
+                }
+            });
+        }
+
+        function renderNodesList() {
+            const list = document.getElementById('nodes-list');
+            const search = document.getElementById('search-nodes').value.toLowerCase();
+            document.getElementById('node-count').innerText = `${dagData.nodes.length} nodes`;
+            
+            list.innerHTML = dagData.nodes
+                .filter(n => n.id.toLowerCase().includes(search) || n.label.toLowerCase().includes(search))
+                .map(n => `
+                    <div class="list-item">
+                        <div class="list-item-content">
+                            <div class="list-item-title">${n.id}</div>
+                            <div class="list-item-subtitle">${n.label}</div>
+                        </div>
+                        <div class="list-item-actions">
+                            <button onclick="promptEditNode('${n.id}', '${n.label.replace(/'/g, "\\'")}')">Edit</button>
+                            <button class="danger" onclick="deleteNode('${n.id}')">Del</button>
+                        </div>
+                    </div>
+                `).join('');
+        }
+        
+        function filterNodes() {
+            renderNodesList();
+        }
+
+        function promptEditNode(id, currentLabel) {
+            const newLabel = prompt("Edit Label:", currentLabel);
+            if (newLabel !== null && newLabel.trim() !== "") {
+                updateNode(id, newLabel.trim());
+            }
+        }
+
+        function renderEdgesList() {
+            const list = document.getElementById('edges-list');
+            document.getElementById('edge-count').innerText = `${dagData.edges.length} edges`;
+            
+            list.innerHTML = dagData.edges.map(e => {
+                const sourceId = typeof e.source === 'object' ? e.source.id : e.source;
+                const targetId = typeof e.target === 'object' ? e.target.id : e.target;
+                return `
+                    <div class="list-item">
+                        <div class="list-item-content">
+                            <div class="list-item-title">${sourceId} → ${targetId}</div>
+                        </div>
+                        <div class="list-item-actions">
+                            <button class="danger" onclick="deleteEdge('${sourceId}', '${targetId}')">Delete</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateTelegramUI() {
+            const isRunning = tgStatus.running;
+            
+            // Header
+            const hDot = document.getElementById('header-dot');
+            const hText = document.getElementById('header-status-text');
+            const hBtn = document.getElementById('btn-toggle-bot');
+            
+            // Tab
+            const tDot = document.getElementById('tab-dot');
+            const tText = document.getElementById('tab-status-text');
+            const tBtn = document.getElementById('btn-toggle-bot-tab');
+            
+            if (isRunning) {
+                hDot.className = 'dot running';
+                tDot.className = 'dot running';
+                hText.innerText = 'Bot Running';
+                tText.innerText = 'Running';
+                
+                hBtn.className = 'danger';
+                hBtn.innerText = 'Stop Bot';
+                hBtn.onclick = stopTelegramBot;
+                
+                tBtn.className = 'danger';
+                tBtn.innerText = 'Stop Bot';
+                tBtn.onclick = stopTelegramBot;
+            } else {
+                hDot.className = 'dot';
+                tDot.className = 'dot';
+                hText.innerText = 'Bot Stopped';
+                tText.innerText = 'Stopped';
+                
+                hBtn.className = 'success';
+                hBtn.innerText = 'Start Bot';
+                hBtn.onclick = startTelegramBot;
+                
+                tBtn.className = 'success';
+                tBtn.innerText = 'Start Bot';
+                tBtn.onclick = startTelegramBot;
+            }
+            
+            document.getElementById('pending-reviews-count').innerText = tgStatus.pending_reviews_count || 0;
+        }
+
+        function renderChatsList() {
+            const list = document.getElementById('chats-list');
+            const chats = tgStatus.chat_ids || [];
+            document.getElementById('chat-count').innerText = `${chats.length} chats`;
+            
+            list.innerHTML = chats.map(chatId => `
+                <div class="list-item">
+                    <div class="list-item-content">
+                        <div class="list-item-title">Chat ID: ${chatId}</div>
+                    </div>
+                    <div class="list-item-actions">
+                        <button class="danger" onclick="removeChat('${chatId}')">Remove</button>
+                    </div>
+                </div>
+            `).join('');
+            
+            if (chats.length === 0) {
+                list.innerHTML = '<div style="padding: 1rem; color: var(--text-secondary); text-align: center;">No chats registered</div>';
+            }
+        }
+
+        // --- Toast Notification ---
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerText = message;
+            toastContainer.appendChild(toast);
+            
+            // Animate in
+            setTimeout(() => toast.classList.add('show'), 10);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // --- API Calls ---
+
+        async function fetchDAG() {
+            try {
+                const res = await fetch('/api/dag');
+                if (!res.ok) throw new Error('Failed to fetch DAG');
+                const data = await res.json();
+                
+                // Deep copy arrays for D3 safety while checking equality
+                dagData.nodes = data.nodes || [];
+                dagData.edges = data.edges || [];
+                
+                updateDAGViz();
+                updateTimestamp();
+            } catch (err) {
+                console.error(err);
+                // Silently fail auto-refresh so we don't spam toasts
+            }
+        }
+
+        async function fetchTelegramStatus() {
+            try {
+                const res = await fetch('/api/telegram/status');
+                if (!res.ok) throw new Error('Failed to fetch TG status');
+                tgStatus = await res.json();
+                updateTelegramUI();
+                renderChatsList();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function addNode(e) {
+            e.preventDefault();
+            const id = document.getElementById('node-id').value.trim();
+            const label = document.getElementById('node-label').value.trim();
+            
+            try {
+                const res = await fetch('/api/dag/nodes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, label })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast(`Node ${id} added successfully`, 'success');
+                document.getElementById('form-add-node').reset();
+                fetchDAG();
+            } catch (err) {
+                showToast(`Error adding node: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteNode(id) {
+            try {
+                const res = await fetch(`/api/dag/nodes/${id}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast(`Node ${id} deleted`, 'success');
+                fetchDAG();
+            } catch (err) {
+                showToast(`Error deleting node: ${err.message}`, 'error');
+            }
+        }
+
+        async function updateNode(id, label) {
+            try {
+                const res = await fetch(`/api/dag/nodes/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ label })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast(`Node ${id} updated`, 'success');
+                fetchDAG();
+            } catch (err) {
+                showToast(`Error updating node: ${err.message}`, 'error');
+            }
+        }
+
+        async function addEdge(e) {
+            e.preventDefault();
+            const source = document.getElementById('edge-source').value;
+            const target = document.getElementById('edge-target').value;
+            
+            if (source === target) {
+                showToast('Source and target cannot be the same', 'warning');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/dag/edges', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source, target })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast('Edge added successfully', 'success');
+                document.getElementById('form-add-edge').reset();
+                fetchDAG();
+            } catch (err) {
+                showToast(`Error adding edge: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteEdge(source, target) {
+            try {
+                const res = await fetch(`/api/dag/edges?source=${encodeURIComponent(source)}&target=${encodeURIComponent(target)}`, { 
+                    method: 'DELETE' 
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast('Edge deleted', 'success');
+                fetchDAG();
+            } catch (err) {
+                showToast(`Error deleting edge: ${err.message}`, 'error');
+            }
+        }
+
+        async function startTelegramBot() {
+            try {
+                const res = await fetch('/api/telegram/start', { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('Telegram bot started', 'success');
+                fetchTelegramStatus();
+            } catch (err) {
+                showToast(`Error starting bot: ${err.message}`, 'error');
+            }
+        }
+
+        async function stopTelegramBot() {
+            try {
+                const res = await fetch('/api/telegram/stop', { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('Telegram bot stopped', 'success');
+                fetchTelegramStatus();
+            } catch (err) {
+                showToast(`Error stopping bot: ${err.message}`, 'error');
+            }
+        }
+
+        async function removeChat(chatId) {
+            if (!confirm(`Remove chat ID ${chatId}?`)) return;
+            try {
+                const res = await fetch(`/api/telegram/chats/${chatId}`, { method: 'DELETE' });
+                if (!res.ok) throw new Error(await res.text());
+                showToast('Chat removed', 'success');
+                fetchTelegramStatus();
+            } catch (err) {
+                showToast(`Error removing chat: ${err.message}`, 'error');
+            }
+        }
+
+        async function sendNotification(e) {
+            e.preventDefault();
+            const node_id = document.getElementById('notify-node').value;
+            const message = document.getElementById('notify-msg').value;
+            
+            const payload = { message };
+            if (node_id) payload.node_id = node_id;
+            
+            try {
+                const res = await fetch('/api/telegram/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                showToast('Notification sent', 'success');
+                document.getElementById('notify-msg').value = '';
+            } catch (err) {
+                showToast(`Error sending notification: ${err.message}`, 'error');
+            }
+        }
+        
+        function updateTimestamp() {
+            const now = new Date();
+            lastRefreshEl.innerText = `Last refresh: ${now.toLocaleTimeString()}`;
+        }
+
+        // --- State File Configuration ---
+
+        const LS_KEY_STATE_FILE = 'dag_state_file_path';
+        const LS_KEY_RECENT_FILES = 'dag_recent_files';
+        let defaultStateFilePath = null; // server default, fetched once
+
+        async function fetchStateFile() {
+            try {
+                const res = await fetch('/api/config/state-file');
+                if (!res.ok) throw new Error('Failed to fetch state file path');
+                const data = await res.json();
+                document.getElementById('state-file-path').value = data.path;
+                document.getElementById('current-state-file').innerText = data.path;
+                return data.path;
+            } catch (err) {
+                console.error(err);
+                return null;
+            }
+        }
+
+        async function setStateFile(e) {
+            if (e) e.preventDefault();
+            const path = document.getElementById('state-file-path').value.trim();
+            if (!path) return;
+
+            try {
+                const res = await fetch('/api/config/state-file', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path })
+                });
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.detail || 'Failed to set state file');
+                }
+                const data = await res.json();
+                
+                // Save to localStorage
+                localStorage.setItem(LS_KEY_STATE_FILE, data.path);
+                addToRecentFiles(data.path);
+                
+                document.getElementById('current-state-file').innerText = data.path;
+                showToast(`State file set to: ${data.path}`, 'success');
+                
+                // Reload DAG with new file
+                await fetchDAG();
+            } catch (err) {
+                showToast(`Error: ${err.message}`, 'error');
+            }
+        }
+
+        async function resetStateFile() {
+            localStorage.removeItem(LS_KEY_STATE_FILE);
+            if (defaultStateFilePath) {
+                document.getElementById('state-file-path').value = defaultStateFilePath;
+                try {
+                    const res = await fetch('/api/config/state-file', {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ path: defaultStateFilePath })
+                    });
+                    if (!res.ok) throw new Error('Failed to reset state file');
+                    document.getElementById('current-state-file').innerText = defaultStateFilePath;
+                    showToast('State file reset to default', 'success');
+                    await fetchDAG();
+                } catch (err) {
+                    showToast(`Error resetting: ${err.message}`, 'error');
+                }
+            } else {
+                showToast('Default path unknown – restart the server', 'warning');
+            }
+        }
+
+        async function switchToRecentFile(path) {
+            document.getElementById('state-file-path').value = path;
+            await setStateFile(null);
+        }
+
+        function addToRecentFiles(path) {
+            let recent = JSON.parse(localStorage.getItem(LS_KEY_RECENT_FILES) || '[]');
+            recent = recent.filter(p => p !== path);
+            recent.unshift(path);
+            if (recent.length > 10) recent = recent.slice(0, 10);
+            localStorage.setItem(LS_KEY_RECENT_FILES, JSON.stringify(recent));
+            renderRecentFiles();
+        }
+
+        function renderRecentFiles() {
+            const list = document.getElementById('recent-files-list');
+            const recent = JSON.parse(localStorage.getItem(LS_KEY_RECENT_FILES) || '[]');
+            if (recent.length === 0) {
+                list.innerHTML = '<div style="color: var(--text-secondary); text-align: center;">No recent files</div>';
+                return;
+            }
+            list.innerHTML = recent.map(path => `
+                <div class="list-item" style="cursor: pointer;" onclick="switchToRecentFile('${path.replace(/'/g, "\\'")}')">
+                    <div class="list-item-content">
+                        <div class="list-item-title" style="font-size: 0.85rem; font-family: monospace;">${path}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- Initialization ---
+        async function init() {
+            // Fetch the server's current/default state file path
+            const currentPath = await fetchStateFile();
+            defaultStateFilePath = currentPath;
+
+            // If user has a saved path in localStorage, restore it
+            const savedPath = localStorage.getItem(LS_KEY_STATE_FILE);
+            if (savedPath && savedPath !== currentPath) {
+                document.getElementById('state-file-path').value = savedPath;
+                await setStateFile(null);
+            }
+
+            renderRecentFiles();
+            await Promise.all([fetchDAG(), fetchTelegramStatus()]);
+            
+            // Auto-refresh every 5 seconds
+            setInterval(() => {
+                fetchDAG();
+                fetchTelegramStatus();
+            }, 5000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

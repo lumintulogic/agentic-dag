@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+dag_state.json
+dag_export.json
+telegram_notification_chat_ids.json
+*.tmp
