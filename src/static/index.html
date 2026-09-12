@@ -711,6 +711,7 @@
 
         let link = g.append("g").attr("class", "links").selectAll(".link");
         let node = g.append("g").attr("class", "nodes").selectAll(".node");
+        let layoutSignature = null;
         
         // Resize observer
         new ResizeObserver(() => {
@@ -754,6 +755,15 @@
                 _sourceId: typeof d.source === 'object' ? d.source.id : d.source,
                 _targetId: typeof d.target === 'object' ? d.target.id : d.target
             }));
+            const nextLayoutSignature = JSON.stringify({
+                nodes: newNodes
+                    .map(d => [d.id, d.label])
+                    .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+                edges: newLinks
+                    .map(d => [d._sourceId, d._targetId])
+                    .sort((a, b) => `${a[0]}\u0000${a[1]}`.localeCompare(`${b[0]}\u0000${b[1]}`))
+            });
+            const layoutChanged = nextLayoutSignature !== layoutSignature;
 
             // Update links
             link = link.data(newLinks, d => `${d._sourceId}-${d._targetId}`);
@@ -810,10 +820,14 @@
             node.select("text")
                 .attr("x", 0);
 
-            // Restart simulation
+            // Polling replaces the data objects, but should not continually add
+            // energy to an unchanged layout. Reheat only for graph changes.
             simulation.nodes(newNodes).on("tick", ticked);
             simulation.force("link").links(newLinks);
-            simulation.alpha(0.3).restart();
+            if (layoutChanged) {
+                layoutSignature = nextLayoutSignature;
+                simulation.alpha(0.3).restart();
+            }
             
             // Update UI Selects & Lists
             updateNodeSelects();
