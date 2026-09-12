@@ -121,8 +121,8 @@ The page has a D3 graph at left and tabs for Nodes, Edges, Telegram, and Setting
 | Status | Color |
 |---|---|
 | In Progress | Blue |
-| To Do | Amber |
-| Review | Purple |
+| To Do / Next | Amber |
+| Review / To Review | Purple |
 | Done | Green |
 | Backlog | Gray |
 | Archived | Dark gray |
