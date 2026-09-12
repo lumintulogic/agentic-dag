@@ -144,6 +144,11 @@ def get_dag_mermaid():
 def show_mermaid_visualization():
     return FileResponse(os.path.join(static_dir, "visualize.html"))
 
+@app.get("/graph", include_in_schema=False)
+@app.get("/graph/", include_in_schema=False)
+def show_graph_canvas():
+    return FileResponse(os.path.join(static_dir, "graph.html"))
+
 @app.post("/api/dag/nodes")
 def add_node(node: NodeModel):
     dag.load()

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAG Graph Canvas</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1b2e;
+            color: #e8e8f0;
+        }
+        body { margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .75rem 1.5rem;
+            background: #252641;
+            border-bottom: 1px solid #3a3b5c;
+        }
+        h1 { margin: 0; font-size: 1.25rem; }
+        .actions { display: flex; gap: .75rem; }
+        button, a {
+            border: 1px solid #3a3b5c;
+            border-radius: 4px;
+            background: #2d2f4e;
+            color: #e8e8f0;
+            padding: .5rem .9rem;
+            font: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        button:hover, a:hover { background: #3a3b5c; }
+        #status { margin: .5rem 1.5rem; color: #a0a0b8; }
+        #status.error { color: #ff9f93; }
+        #canvas { flex: 1; min-height: 0; background: #1a1b2e; cursor: grab; }
+        #canvas:active { cursor: grabbing; }
+        .link { stroke: #a0a0b8; stroke-opacity: .75; fill: none; }
+        .node rect { stroke: #e8e8f0; stroke-opacity: .3; }
+        .node text { fill: #e8e8f0; font-size: 12px; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>DAG Graph Canvas</h1>
+        <div class="actions">
+            <a id="control-panel">Control Panel</a>
+            <a id="mermaid-view">Mermaid View</a>
+            <button id="reset" type="button">Reset View</button>
+            <button id="refresh" type="button">Refresh Graph</button>
+        </div>
+    </header>
+    <p id="status" role="status">Loading graph…</p>
+    <svg id="canvas" aria-label="Interactive DAG graph"></svg>
+
+    <script>
+        const COLORS = {
+            'In Progress': '#0984e3',
+            'To Do': '#fdcb6e',
+            Review: '#6c5ce7',
+            Done: '#00b894',
+            Backlog: '#b2bec3',
+            Archived: '#636e72',
+            Default: '#74b9ff'
+        };
+        const canvas = d3.select('#canvas');
+        const status = document.getElementById('status');
+        const viewport = canvas.append('g');
+        const linksLayer = viewport.append('g').attr('class', 'links');
+        const nodesLayer = viewport.append('g').attr('class', 'nodes');
+        const markerId = 'graph-arrowhead';
+        let linkSelection = linksLayer.selectAll('.link');
+        let nodeSelection = nodesLayer.selectAll('.node');
+        let nodes = [];
+        let links = [];
+
+        canvas.append('defs').append('marker')
+            .attr('id', markerId)
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 12)
+            .attr('refY', 0)
+            .attr('markerWidth', 7)
+            .attr('markerHeight', 7)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', '#a0a0b8');
+
+        const zoom = d3.zoom().scaleExtent([0.1, 5])
+            .on('zoom', event => viewport.attr('transform', event.transform));
+        canvas.call(zoom);
+
+        const simulation = d3.forceSimulation()
+            .force('link', d3.forceLink().id(d => d.id).distance(180).strength(.7))
+            .force('charge', d3.forceManyBody().strength(-900))
+            .force('collide', d3.forceCollide().radius(d => (d.width || 150) / 2 + 20))
+            .on('tick', ticked);
+
+        function appBasePath() {
+            return window.location.pathname.replace(/\/graph\/?$/, '/');
+        }
+
+        function apiPath(endpoint) {
+            return `${appBasePath()}api/${endpoint}`;
+        }
+
+        document.getElementById('control-panel').href = appBasePath();
+        document.getElementById('mermaid-view').href = `${appBasePath()}visualize`;
+
+        function getStatus(label) {
+            const state = (label || '').split(' — ')[0].trim();
+            return COLORS[state] ? state : 'Default';
+        }
+
+        function clippedLabel(label) {
+            return label && label.length > 42 ? `${label.slice(0, 42)}…` : (label || '');
+        }
+
+        function resetView() {
+            canvas.transition().duration(300).call(zoom.transform, d3.zoomIdentity);
+        }
+
+        function resize() {
+            const { width, height } = canvas.node().getBoundingClientRect();
+            simulation.force('center', d3.forceCenter(width / 2, height / 2));
+            if (nodes.length) simulation.alpha(.2).restart();
+        }
+
+        function ticked() {
+            linkSelection.attr('d', d => `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`);
+            nodeSelection.attr('transform', d => `translate(${d.x},${d.y})`);
+        }
+
+        function dragstarted(event, datum) {
+            if (!event.active) simulation.alphaTarget(.25).restart();
+            datum.fx = datum.x;
+            datum.fy = datum.y;
+        }
+
+        function dragged(event, datum) {
+            datum.fx = event.x;
+            datum.fy = event.y;
+        }
+
+        function dragended(event, datum) {
+            if (!event.active) simulation.alphaTarget(0);
+            datum.fx = null;
+            datum.fy = null;
+        }
+
+        function renderGraph(data) {
+            const oldNodes = new Map(nodes.map(node => [node.id, node]));
+            nodes = data.nodes.map(item => {
+                const old = oldNodes.get(item.id);
+                const label = clippedLabel(item.label);
+                const width = Math.max(130, Math.min(330, label.length * 7 + 32));
+                return old
+                    ? { ...item, width, x: old.x, y: old.y, vx: old.vx, vy: old.vy }
+                    : { ...item, width };
+            });
+            links = data.edges.map(edge => ({ ...edge }));
+
+            linkSelection = linkSelection.data(links, d => `${d.source}-${d.target}`);
+            linkSelection.exit().remove();
+            linkSelection = linkSelection.enter().append('path')
+                .attr('class', 'link')
+                .attr('marker-end', `url(#${markerId})`)
+                .merge(linkSelection);
+
+            nodeSelection = nodeSelection.data(nodes, d => d.id);
+            nodeSelection.exit().remove();
+            const entered = nodeSelection.enter().append('g')
+                .attr('class', 'node')
+                .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+            entered.append('rect').attr('height', 34).attr('rx', 6).attr('ry', 6);
+            entered.append('text').attr('text-anchor', 'middle').attr('dominant-baseline', 'central');
+            nodeSelection = entered.merge(nodeSelection);
+            nodeSelection.select('rect')
+                .attr('width', d => d.width)
+                .attr('x', d => -d.width / 2)
+                .attr('y', -17)
+                .attr('fill', d => COLORS[getStatus(d.label)]);
+            nodeSelection.select('text').text(d => clippedLabel(d.label));
+
+            simulation.nodes(nodes);
+            simulation.force('link').links(links);
+            resize();
+            simulation.alpha(.8).restart();
+        }
+
+        async function loadGraph() {
+            status.classList.remove('error');
+            status.textContent = 'Loading graph…';
+            try {
+                const response = await fetch(apiPath('dag'), { cache: 'no-store' });
+                if (!response.ok) throw new Error(`The server returned ${response.status}`);
+                renderGraph(await response.json());
+                status.textContent = `${nodes.length} nodes, ${links.length} edges. Drag nodes; scroll or pinch to zoom; drag the background to pan.`;
+            } catch (error) {
+                status.classList.add('error');
+                status.textContent = `Could not load the graph: ${error.message}`;
+            }
+        }
+
+        new ResizeObserver(resize).observe(canvas.node());
+        document.getElementById('reset').addEventListener('click', resetView);
+        document.getElementById('refresh').addEventListener('click', loadGraph);
+        loadGraph();
+    </script>
+</body>
+</html>

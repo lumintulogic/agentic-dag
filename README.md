@@ -92,7 +92,8 @@ Open `http://localhost:8080`. When using a forwarded development-server URL, ope
 - Node and edge CRUD controls, with cycle protection enforced by the API.
 - Telegram bot start/stop controls, registered-chat management, pending-review status, and notification sending.
 - State-file selection with recent-file history in browser `localStorage`.
-- A rendered Mermaid.js page at `/visualize`, plus the raw Mermaid source at `/api/dag/mermaid`.
+- A full-size, scrollable Mermaid.js page at `/visualize`, plus the raw Mermaid source at `/api/dag/mermaid`.
+- A dedicated zoomable D3 Graph Canvas at `/graph` for navigating large DAGs without shrinking them to fit.
 
 The control panel polls the DAG and Telegram status every five seconds. It retains the existing node layout during ordinary polling; the force simulation is reheated only when nodes, labels, or edges change.
 
@@ -153,6 +154,7 @@ The Settings tab applies a state-file path to the running server and saves it lo
 | `DELETE` | `/api/telegram/chats/{chat_id}` | Remove a registered chat. |
 | `POST` | `/api/telegram/notify` | Send a task-linked notification. |
 | `GET` | `/visualize` | Render the current DAG with Mermaid.js. |
+| `GET` | `/graph` | Open the full-screen D3 Graph Canvas. |
 
 ### Deployment notes
 

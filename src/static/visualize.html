@@ -37,14 +37,15 @@
         main { padding: 1.5rem; }
         #status { color: #a0a0b8; margin: 0 0 1rem; }
         #diagram {
-            min-height: 20rem;
+            min-height: 70vh;
             overflow: auto;
             padding: 1.5rem;
             border: 1px solid #3a3b5c;
             border-radius: 6px;
             background: #252641;
         }
-        #diagram svg { display: block; margin: auto; max-width: 100%; height: auto; }
+        #diagram svg { display: block; margin: auto; max-width: none !important; height: auto; }
+        #diagram.fit-width svg { width: 100% !important; max-width: 100% !important; }
         details { margin-top: 1rem; }
         pre {
             overflow: auto;
@@ -61,7 +62,9 @@
         <h1>DAG Mermaid Visualization</h1>
         <div class="actions">
             <a id="control-panel">Control Panel</a>
+            <a id="graph-canvas">Graph Canvas</a>
             <a id="raw-mermaid" target="_blank" rel="noopener">Raw Mermaid</a>
+            <button id="fit-width" type="button">Fit to Width</button>
             <button id="refresh" type="button">Refresh</button>
         </div>
     </header>
@@ -77,13 +80,20 @@
     <script type="module">
         import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
-        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+        mermaid.initialize({
+            startOnLoad: false,
+            theme: 'dark',
+            securityLevel: 'strict',
+            flowchart: { useMaxWidth: false }
+        });
 
         const status = document.getElementById('status');
         const diagram = document.getElementById('diagram');
         const source = document.getElementById('source');
         const rawMermaid = document.getElementById('raw-mermaid');
         const controlPanel = document.getElementById('control-panel');
+        const graphCanvas = document.getElementById('graph-canvas');
+        const fitWidth = document.getElementById('fit-width');
         let renderVersion = 0;
 
         function appBasePath() {
@@ -96,6 +106,12 @@
         }
 
         controlPanel.href = appBasePath();
+        graphCanvas.href = `${appBasePath()}graph`;
+
+        fitWidth.addEventListener('click', () => {
+            const fitting = diagram.classList.toggle('fit-width');
+            fitWidth.textContent = fitting ? 'Full Size' : 'Fit to Width';
+        });
 
         async function renderDiagram() {
             status.classList.remove('error');
