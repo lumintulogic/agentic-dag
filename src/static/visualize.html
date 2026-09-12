@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DAG Mermaid Visualization</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1b2e;
+            color: #e8e8f0;
+        }
+        body { margin: 0; min-height: 100vh; }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .75rem 1.5rem;
+            background: #252641;
+            border-bottom: 1px solid #3a3b5c;
+        }
+        h1 { margin: 0; font-size: 1.25rem; }
+        .actions { display: flex; gap: .75rem; }
+        button, a {
+            border: 1px solid #3a3b5c;
+            border-radius: 4px;
+            background: #2d2f4e;
+            color: #e8e8f0;
+            padding: .5rem .9rem;
+            font: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        button:hover, a:hover { background: #3a3b5c; }
+        main { padding: 1.5rem; }
+        #status { color: #a0a0b8; margin: 0 0 1rem; }
+        #diagram {
+            min-height: 20rem;
+            overflow: auto;
+            padding: 1.5rem;
+            border: 1px solid #3a3b5c;
+            border-radius: 6px;
+            background: #252641;
+        }
+        #diagram svg { display: block; margin: auto; max-width: 100%; height: auto; }
+        details { margin-top: 1rem; }
+        pre {
+            overflow: auto;
+            padding: 1rem;
+            border-radius: 6px;
+            background: #252641;
+            white-space: pre-wrap;
+        }
+        .error { color: #ff9f93; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>DAG Mermaid Visualization</h1>
+        <div class="actions">
+            <a id="control-panel">Control Panel</a>
+            <a id="raw-mermaid" target="_blank" rel="noopener">Raw Mermaid</a>
+            <button id="refresh" type="button">Refresh</button>
+        </div>
+    </header>
+    <main>
+        <p id="status" role="status">Loading diagram…</p>
+        <div id="diagram" aria-live="polite"></div>
+        <details>
+            <summary>Generated Mermaid source</summary>
+            <pre id="source"></pre>
+        </details>
+    </main>
+
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+        mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'strict' });
+
+        const status = document.getElementById('status');
+        const diagram = document.getElementById('diagram');
+        const source = document.getElementById('source');
+        const rawMermaid = document.getElementById('raw-mermaid');
+        const controlPanel = document.getElementById('control-panel');
+        let renderVersion = 0;
+
+        function appBasePath() {
+            return window.location.pathname
+                .replace(/\/visualize(?:\.html)?\/?$/, '/');
+        }
+
+        function apiPath(endpoint) {
+            return `${appBasePath()}api/${endpoint}`;
+        }
+
+        controlPanel.href = appBasePath();
+
+        async function renderDiagram() {
+            status.classList.remove('error');
+            status.textContent = 'Loading diagram…';
+            diagram.replaceChildren();
+            try {
+                const response = await fetch(apiPath('dag/mermaid'), { cache: 'no-store' });
+                if (!response.ok) throw new Error(`The server returned ${response.status}`);
+                const mermaidSource = await response.text();
+                source.textContent = mermaidSource;
+                rawMermaid.href = apiPath('dag/mermaid');
+
+                const { svg, bindFunctions } = await mermaid.render(
+                    `dag-mermaid-diagram-${++renderVersion}`, mermaidSource
+                );
+                diagram.innerHTML = svg;
+                bindFunctions?.(diagram);
+                status.textContent = 'Diagram rendered from the current DAG.';
+            } catch (error) {
+                status.classList.add('error');
+                status.textContent = `Could not render the diagram: ${error.message}`;
+            }
+        }
+
+        document.getElementById('refresh').addEventListener('click', renderDiagram);
+        renderDiagram();
+    </script>
+</body>
+</html>

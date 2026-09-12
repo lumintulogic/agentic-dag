@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import os
@@ -138,6 +138,11 @@ def get_dag():
 def get_dag_mermaid():
     dag.load()
     return generate_mermaid(dag)
+
+@app.get("/visualize", include_in_schema=False)
+@app.get("/visualize/", include_in_schema=False)
+def show_mermaid_visualization():
+    return FileResponse(os.path.join(static_dir, "visualize.html"))
 
 @app.post("/api/dag/nodes")
 def add_node(node: NodeModel):

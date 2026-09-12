@@ -102,6 +102,8 @@ flowchart TD
     B --> C[End]
 ```
 
+When the web server is running, open `/visualize` for an interactive Mermaid.js rendering of the current DAG. The page also links to the raw Mermaid source at `/api/dag/mermaid`.
+
 Use a Mermaid-compatible Markdown preview, GitHub, or Mermaid Live Editor to render the result.
 
 ## Persistence
