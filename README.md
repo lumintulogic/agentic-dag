@@ -84,7 +84,7 @@ Start it from the repository root:
 python -m src.run_web
 ```
 
-Open `http://localhost:8080`. When using a forwarded development-server URL, open its forwarded `/proxy/8080/` path instead. The UI uses paths relative to that application base, so its API calls work both at the domain root and behind a path-based proxy.
+The server prefers port `8080` and automatically tries the next available port if it is occupied; it prints the selected address at startup. Set `WEB_PORT` to choose the first port to try. Open the printed `http://localhost:<port>` address. When using a forwarded development-server URL, open its forwarded `/proxy/<port>/` path instead. The UI uses paths relative to that application base, so its API calls work both at the domain root and behind a path-based proxy.
 
 ### What it provides
 
