@@ -7,7 +7,7 @@ This repository provides a lightweight framework for agentic workflows that can:
 - Render the DAG as Mermaid JS syntax for compatible viewers.
 - Register Telegram chats for proactive human-review notifications.
 
-## Directory Layout
+## Project Layout
 
 ```text
 agentic-dag/
@@ -17,8 +17,14 @@ agentic-dag/
 │   ├── notifications.py  # Local registered-chat storage.
 │   ├── notify.py         # CLI sender for human-review notifications.
 │   ├── visualize.py      # Mermaid generation utilities.
-│   └── main.py           # Bot entry point.
+│   ├── main.py           # Telegram bot entry point.
+│   ├── run_web.py        # Web server entry point.
+│   ├── web.py            # FastAPI API and bot manager.
+│   └── static/
+│       ├── index.html    # Control-panel single-page app.
+│       └── visualize.html # Rendered Mermaid diagram page.
 ├── requirements.txt
+├── dag_state.json        # Default persisted DAG (created on first save).
 └── README.md
 ```
 
@@ -67,6 +73,101 @@ DAG_EXPORT_FILE=/path/to/dag_export.json
 ```
 
 `DAG_STATE_FILE` is useful when the tracker code and its persisted project state live in separate directories. The bot loads this file on startup and saves every DAG mutation back to the same path.
+
+## Web UI
+
+The FastAPI control panel provides a browser interface for the DAG, Telegram bot controls, and persisted state-file selection.
+
+Start it from the repository root:
+
+```bash
+python -m src.run_web
+```
+
+Open `http://localhost:8080`. When using a forwarded development-server URL, open its forwarded `/proxy/8080/` path instead. The UI uses paths relative to that application base, so its API calls work both at the domain root and behind a path-based proxy.
+
+### What it provides
+
+- Interactive D3 force-directed DAG with directed edges, drag, zoom/pan, selection, and a node context menu.
+- Node and edge CRUD controls, with cycle protection enforced by the API.
+- Telegram bot start/stop controls, registered-chat management, pending-review status, and notification sending.
+- State-file selection with recent-file history in browser `localStorage`.
+- A rendered Mermaid.js page at `/visualize`, plus the raw Mermaid source at `/api/dag/mermaid`.
+
+The control panel polls the DAG and Telegram status every five seconds. It retains the existing node layout during ordinary polling; the force simulation is reheated only when nodes, labels, or edges change.
+
+### Architecture
+
+```text
+Browser control panel / Mermaid page
+                 │ HTTP
+                 ▼
+FastAPI server (src/web.py)
+ ├── DAG and state-file API
+ ├── Telegram bot manager (background thread)
+ └── static frontend
+                 │
+                 ▼
+NetworkX DAG persisted as JSON (DAG_STATE_FILE)
+```
+
+The web API reloads its configured DAG state before reads and mutations. Set `DAG_STATE_FILE` before starting the server to ensure that the web UI and Telegram bot use the same persisted DAG. The embedded Telegram bot runs in a daemon thread with its own asyncio event loop.
+
+### Control-panel behavior
+
+The page has a D3 graph at left and tabs for Nodes, Edges, Telegram, and Settings. Node label prefixes determine the graph color:
+
+| Status | Color |
+|---|---|
+| In Progress | Blue |
+| To Do | Amber |
+| Review | Purple |
+| Done | Green |
+| Backlog | Gray |
+| Archived | Dark gray |
+
+The Settings tab applies a state-file path to the running server and saves it locally for the current browser. It maintains these `localStorage` keys:
+
+| Key | Description |
+|---|---|
+| `dag_state_file_path` | Last state-file path applied by this browser. |
+| `dag_recent_files` | Up to ten recently used state-file paths. |
+
+### HTTP API
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/api/config/state-file` | Get the active state-file path. |
+| `PUT` | `/api/config/state-file` | Set the active state-file path: `{"path": "..."}`. |
+| `GET` | `/api/dag` | Get nodes and edges. |
+| `GET` | `/api/dag/mermaid` | Get generated Mermaid flowchart source. |
+| `POST` | `/api/dag/nodes` | Add a node: `{"id": "...", "label": "..."}`. |
+| `PUT` | `/api/dag/nodes/{node_id}` | Update a node label. |
+| `DELETE` | `/api/dag/nodes/{node_id}` | Delete a node and its connected edges. |
+| `POST` | `/api/dag/edges` | Add an edge: `{"source": "...", "target": "..."}`. |
+| `DELETE` | `/api/dag/edges` | Delete an edge using `source` and `target` query parameters. |
+| `GET` | `/api/telegram/status` | Get bot, registered-chat, and pending-review status. |
+| `POST` | `/api/telegram/start` | Start the Telegram bot in the server process. |
+| `POST` | `/api/telegram/stop` | Stop the Telegram bot. |
+| `GET` | `/api/telegram/chats` | List registered chat IDs. |
+| `DELETE` | `/api/telegram/chats/{chat_id}` | Remove a registered chat. |
+| `POST` | `/api/telegram/notify` | Send a task-linked notification. |
+| `GET` | `/visualize` | Render the current DAG with Mermaid.js. |
+
+### Deployment notes
+
+- The server serves the static control panel at `/` and enables permissive CORS for development.
+- The browser loads D3.js and Mermaid.js from CDNs, so a browser rendering those views needs access to those CDNs.
+- The UI does not provide authentication. Put it behind suitable access controls before exposing it publicly.
+
+### Web UI roadmap
+
+- Node metadata editing beyond labels.
+- Bulk import/export from the UI.
+- Authentication and authorization for production deployments.
+- WebSocket updates in place of polling.
+- Persisted graph-layout coordinates.
+- Light-theme and mobile-layout support.
 
 ## Bot Commands
 
