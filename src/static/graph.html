@@ -41,7 +41,26 @@
         #canvas:active { cursor: grabbing; }
         .link { stroke: #a0a0b8; stroke-opacity: .75; fill: none; }
         .node rect { stroke: #e8e8f0; stroke-opacity: .3; }
+        .node.selected rect { stroke: #ffffff; stroke-opacity: 1; stroke-width: 3px; }
         .node text { fill: #e8e8f0; font-size: 12px; pointer-events: none; }
+        #node-details {
+            position: fixed;
+            top: 5.5rem;
+            right: 1.5rem;
+            z-index: 2;
+            width: min(24rem, calc(100vw - 3rem));
+            padding: 1rem;
+            border: 1px solid #3a3b5c;
+            border-radius: 6px;
+            background: rgba(37, 38, 65, .96);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+        }
+        #node-details[hidden] { display: none; }
+        #node-details h2 { margin: 0 2rem .75rem 0; font-size: 1rem; }
+        #close-details { position: absolute; top: .55rem; right: .55rem; padding: .2rem .45rem; }
+        #node-details dl { margin: 0; display: grid; grid-template-columns: 6rem 1fr; gap: .55rem .75rem; }
+        #node-details dt { color: #a0a0b8; font-weight: 600; }
+        #node-details dd { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
     </style>
 </head>
 <body>
@@ -56,6 +75,17 @@
     </header>
     <p id="status" role="status">Loading graph…</p>
     <svg id="canvas" aria-label="Interactive DAG graph"></svg>
+    <aside id="node-details" hidden aria-live="polite">
+        <button id="close-details" type="button" aria-label="Close node details">×</button>
+        <h2>Node Details</h2>
+        <dl>
+            <dt>ID</dt><dd id="detail-id"></dd>
+            <dt>Status</dt><dd id="detail-status"></dd>
+            <dt>Label</dt><dd id="detail-label"></dd>
+            <dt>Incoming</dt><dd id="detail-incoming"></dd>
+            <dt>Outgoing</dt><dd id="detail-outgoing"></dd>
+        </dl>
+    </aside>
 
     <script>
         const COLORS = {
@@ -77,6 +107,8 @@
         let nodeSelection = nodesLayer.selectAll('.node');
         let nodes = [];
         let links = [];
+        let selectedNodeId = null;
+        const details = document.getElementById('node-details');
 
         canvas.append('defs').append('marker')
             .attr('id', markerId)
@@ -118,6 +150,31 @@
 
         function clippedLabel(label) {
             return label && label.length > 42 ? `${label.slice(0, 42)}…` : (label || '');
+        }
+
+        function endpointId(endpoint) {
+            return typeof endpoint === 'object' ? endpoint.id : endpoint;
+        }
+
+        function showNodeDetails(node) {
+            selectedNodeId = node.id;
+            const incoming = links.filter(link => endpointId(link.target) === node.id)
+                .map(link => endpointId(link.source));
+            const outgoing = links.filter(link => endpointId(link.source) === node.id)
+                .map(link => endpointId(link.target));
+            document.getElementById('detail-id').textContent = node.id;
+            document.getElementById('detail-status').textContent = getStatus(node.label);
+            document.getElementById('detail-label').textContent = node.label || '';
+            document.getElementById('detail-incoming').textContent = incoming.length ? incoming.join(', ') : 'None';
+            document.getElementById('detail-outgoing').textContent = outgoing.length ? outgoing.join(', ') : 'None';
+            details.hidden = false;
+            nodeSelection.classed('selected', datum => datum.id === selectedNodeId);
+        }
+
+        function closeNodeDetails() {
+            selectedNodeId = null;
+            details.hidden = true;
+            nodeSelection.classed('selected', false);
         }
 
         function resetView() {
@@ -175,7 +232,11 @@
             nodeSelection.exit().remove();
             const entered = nodeSelection.enter().append('g')
                 .attr('class', 'node')
-                .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended));
+                .call(d3.drag().on('start', dragstarted).on('drag', dragged).on('end', dragended))
+                .on('click', (event, datum) => {
+                    event.stopPropagation();
+                    showNodeDetails(datum);
+                });
             entered.append('rect').attr('height', 34).attr('rx', 6).attr('ry', 6);
             entered.append('text').attr('text-anchor', 'middle').attr('dominant-baseline', 'central');
             nodeSelection = entered.merge(nodeSelection);
@@ -185,6 +246,13 @@
                 .attr('y', -17)
                 .attr('fill', d => COLORS[getStatus(d.label)]);
             nodeSelection.select('text').text(d => clippedLabel(d.label));
+            nodeSelection.classed('selected', d => d.id === selectedNodeId);
+
+            if (selectedNodeId) {
+                const selectedNode = nodes.find(node => node.id === selectedNodeId);
+                if (selectedNode) showNodeDetails(selectedNode);
+                else closeNodeDetails();
+            }
 
             simulation.nodes(nodes);
             simulation.force('link').links(links);
@@ -209,6 +277,7 @@
         new ResizeObserver(resize).observe(canvas.node());
         document.getElementById('reset').addEventListener('click', resetView);
         document.getElementById('refresh').addEventListener('click', loadGraph);
+        document.getElementById('close-details').addEventListener('click', closeNodeDetails);
         loadGraph();
     </script>
 </body>
