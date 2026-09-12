@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
 import os
 import threading
 import asyncio
@@ -13,6 +14,10 @@ from .dag import Dag
 from .visualize import generate_mermaid
 from .notifications import _load_registry, _save_registry
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
+
+# The control panel can start the Telegram bot itself, so its process must load
+# the same .env configuration as the standalone bot entry point.
+load_dotenv()
 
 class TelegramBotManager:
     def __init__(self):
