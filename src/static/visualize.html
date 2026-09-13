@@ -662,8 +662,16 @@
                 }
             }
 
-            for (const [cardId, state] of endpointStates) {
-                if (state.geometry) continue;
+            const parkingIds = new Set();
+            for (const { sourceId, targetId } of relationships) {
+                const sourceVisible = Boolean(endpointStates.get(sourceId)?.geometry);
+                const targetVisible = Boolean(endpointStates.get(targetId)?.geometry);
+                if (sourceVisible !== targetVisible) {
+                    parkingIds.add(sourceVisible ? targetId : sourceId);
+                }
+            }
+            for (const cardId of parkingIds) {
+                const state = endpointStates.get(cardId);
                 const proxy = parkOffscreenCard(cardId, state.position);
                 if (proxy) state.proxy = proxy;
             }
@@ -672,8 +680,13 @@
             }
 
             for (const { sourceId, targetId } of relationships) {
-                const sourceGeometry = endpointStates.get(sourceId)?.geometry;
-                const targetGeometry = endpointStates.get(targetId)?.geometry;
+                const sourceState = endpointStates.get(sourceId);
+                const targetState = endpointStates.get(targetId);
+                const sourceVisible = Boolean(sourceState?.geometry) && !sourceState.proxy;
+                const targetVisible = Boolean(targetState?.geometry) && !targetState.proxy;
+                if (!sourceVisible && !targetVisible) continue;
+                const sourceGeometry = sourceState?.geometry;
+                const targetGeometry = targetState?.geometry;
                 if (!sourceGeometry || !targetGeometry) continue;
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('class', 'dependency-line');
@@ -711,7 +724,7 @@
             const missingText = missing ? ` ${missing} unresolved ${missing === 1 ? 'dependency' : 'dependencies'}.` : '';
             const connectionText = connectionCount === totalConnectionCount
                 ? `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
-                : `${connectionCount} of ${totalConnectionCount} connections visible`;
+                : `${connectionCount} of ${totalConnectionCount} connections shown`;
             const parkedText = dockElements.size
                 ? ` · ${dockElements.size} parked ${dockElements.size === 1 ? 'card' : 'cards'}`
                 : '';
