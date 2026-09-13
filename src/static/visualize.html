@@ -3,220 +3,448 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAG Mermaid Visualization</title>
+    <title>DAG Project · Kanban</title>
     <style>
         :root {
             color-scheme: dark;
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: #1a1b2e;
-            color: #e8e8f0;
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            --page: #111321;
+            --surface: #1a1d30;
+            --surface-raised: #242841;
+            --surface-hover: #2d3250;
+            --text: #f3f4fb;
+            --muted: #a7acc4;
+            --border: #343954;
+            --line: #9fc5ff;
+            background: var(--page);
+            color: var(--text);
         }
-        body { margin: 0; min-height: 100vh; }
+        * { box-sizing: border-box; }
+        body { margin: 0; min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         header {
+            min-height: 64px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             gap: 1rem;
-            padding: .75rem 1.5rem;
-            background: #252641;
-            border-bottom: 1px solid #3a3b5c;
+            padding: .75rem 1.25rem;
+            background: rgba(26, 29, 48, .96);
+            border-bottom: 1px solid var(--border);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, .18);
+            z-index: 10;
         }
-        h1 { margin: 0; font-size: 1.25rem; }
-        .actions { display: flex; gap: .75rem; }
+        .heading { min-width: 0; }
+        h1 { margin: 0; font-size: 1.18rem; letter-spacing: -.01em; }
+        .subtitle { margin: .15rem 0 0; color: var(--muted); font-size: .8rem; }
+        .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .55rem; }
         button, a {
-            border: 1px solid #3a3b5c;
-            border-radius: 4px;
-            background: #2d2f4e;
-            color: #e8e8f0;
-            padding: .5rem .9rem;
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            background: var(--surface-raised);
+            color: var(--text);
+            padding: .48rem .78rem;
             font: inherit;
+            font-size: .86rem;
             text-decoration: none;
             cursor: pointer;
+            transition: background .15s ease, border-color .15s ease;
         }
-        button:hover, a:hover { background: #3a3b5c; }
-        main { padding: 1.5rem; }
-        #status { color: #a0a0b8; margin: 0 0 1rem; }
-        #diagram {
-            min-height: 70vh;
-            height: 70vh;
-            overflow: hidden;
-            border: 1px solid #3a3b5c;
-            border-radius: 6px;
-            background: #252641;
+        button:hover, a:hover { background: var(--surface-hover); border-color: #50577a; }
+        button[aria-pressed="false"] { color: var(--muted); }
+        main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+        .board-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            min-height: 44px;
+            padding: .5rem 1.25rem;
+            border-bottom: 1px solid rgba(52, 57, 84, .65);
         }
-        #diagram svg.pan-zoom {
-            display: block;
-            width: 100% !important;
-            height: 100% !important;
-            max-width: none !important;
-            cursor: grab;
-            touch-action: none;
-        }
-        #diagram svg.pan-zoom.dragging { cursor: grabbing; }
-        details { margin-top: 1rem; }
-        pre {
+        #status { margin: 0; color: var(--muted); font-size: .86rem; }
+        #status.error { color: #ff9f93; }
+        .legend { display: flex; align-items: center; gap: .45rem; color: var(--muted); font-size: .78rem; }
+        .legend-line { width: 28px; height: 8px; overflow: visible; }
+        #board-scroll {
+            flex: 1;
+            min-height: 0;
             overflow: auto;
-            padding: 1rem;
-            border-radius: 6px;
-            background: #252641;
-            white-space: pre-wrap;
+            padding: 1.1rem;
+            scrollbar-color: #4b5173 var(--surface);
         }
-        .error { color: #ff9f93; }
+        #board {
+            position: relative;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            width: max-content;
+            min-width: 100%;
+            min-height: 100%;
+        }
+        #connections {
+            position: absolute;
+            inset: 0 auto auto 0;
+            overflow: visible;
+            pointer-events: none;
+            z-index: 3;
+        }
+        .dependency-line {
+            fill: none;
+            stroke: var(--line);
+            stroke-width: 2;
+            stroke-opacity: .68;
+            vector-effect: non-scaling-stroke;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7));
+            transition: stroke-opacity .15s ease, stroke-width .15s ease;
+        }
+        .dependency-line.muted { stroke-opacity: .1; }
+        .dependency-line.highlighted { stroke-opacity: 1; stroke-width: 3; }
+        .lane {
+            --lane-color: #8b7cf6;
+            position: relative;
+            z-index: 1;
+            flex: 0 0 292px;
+            width: 292px;
+            min-height: calc(100vh - 150px);
+            padding: .85rem;
+            border: 1px solid var(--border);
+            border-top: 3px solid var(--lane-color);
+            border-radius: 10px;
+            background: linear-gradient(180deg, rgba(36, 40, 65, .95), rgba(26, 29, 48, .95));
+        }
+        .lane-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: .75rem;
+            margin-bottom: .85rem;
+            padding: 0 .15rem;
+            border: 0;
+            box-shadow: none;
+            background: transparent;
+            min-height: 0;
+        }
+        .lane-title { margin: 0; min-width: 0; font-size: .9rem; font-weight: 700; overflow-wrap: anywhere; }
+        .lane-count {
+            flex: none;
+            min-width: 1.65rem;
+            padding: .15rem .45rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .08);
+            color: var(--muted);
+            text-align: center;
+            font-size: .72rem;
+        }
+        .lane-cards { display: flex; flex-direction: column; gap: .75rem; }
+        .card {
+            position: relative;
+            z-index: 4;
+            min-height: 92px;
+            padding: .85rem;
+            border: 1px solid #3d4362;
+            border-left: 3px solid var(--lane-color);
+            border-radius: 8px;
+            background: #20243a;
+            box-shadow: 0 5px 14px rgba(0, 0, 0, .2);
+            transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+        .card:hover, .card:focus-visible {
+            outline: none;
+            transform: translateY(-2px);
+            border-color: var(--lane-color);
+            box-shadow: 0 9px 20px rgba(0, 0, 0, .3);
+        }
+        .card-id { margin: 0 0 .4rem; color: var(--muted); font: 600 .7rem ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+        .card-title { margin: 0; font-size: .9rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .card-dependencies { margin: .7rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .card-dependencies strong { color: #d7daf0; }
+        .empty { width: 100%; margin: auto; color: var(--muted); text-align: center; }
+        @media (max-width: 720px) {
+            body { overflow: auto; }
+            header { align-items: flex-start; flex-direction: column; }
+            .actions { justify-content: flex-start; }
+            main { min-height: 72vh; }
+            .legend { display: none; }
+            .lane { flex-basis: 265px; width: 265px; min-height: 65vh; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition: none !important; }
+        }
     </style>
 </head>
 <body>
     <header>
-        <h1>DAG Mermaid Visualization</h1>
+        <div class="heading">
+            <h1 id="project-title">DAG Project</h1>
+            <p class="subtitle">Kanban · Cards grouped into lanes by label</p>
+        </div>
         <div class="actions">
             <a id="control-panel">Control Panel</a>
             <a id="graph-canvas">Graph Canvas</a>
-            <a id="raw-mermaid" target="_blank" rel="noopener">Raw Mermaid</a>
-            <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
-            <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-            <button id="reset-view" type="button">Reset View</button>
+            <button id="toggle-connections" type="button" aria-pressed="true">Hide Dependencies</button>
             <button id="refresh" type="button">Refresh</button>
         </div>
     </header>
     <main>
-        <p id="status" role="status">Loading diagram…</p>
-        <div id="diagram" aria-live="polite"></div>
-        <details>
-            <summary>Generated Mermaid source</summary>
-            <pre id="source"></pre>
-        </details>
+        <div class="board-meta">
+            <p id="status" role="status">Loading board…</p>
+            <div class="legend" aria-hidden="true">
+                <svg class="legend-line" viewBox="0 0 28 8"><path d="M0,4 C10,4 18,4 25,4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M24,1 L28,4 L24,7" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                dependency → dependent card
+            </div>
+        </div>
+        <div id="board-scroll">
+            <div id="board" aria-live="polite">
+                <svg id="connections" aria-label="Card dependency connections">
+                    <defs>
+                        <marker id="dependency-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                            <path d="M 0 0 L 10 5 L 0 10 z" fill="#9fc5ff"></path>
+                        </marker>
+                    </defs>
+                    <g id="connection-lines"></g>
+                </svg>
+                <div class="empty">Loading cards…</div>
+            </div>
+        </div>
     </main>
 
-    <script type="module">
-        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-
-        mermaid.initialize({
-            startOnLoad: false,
-            theme: 'dark',
-            securityLevel: 'strict',
-            flowchart: { useMaxWidth: false }
-        });
-
+    <script>
+        const KNOWN_LANES = ['Backlog', 'To Do', 'Next', 'In Progress', 'Review', 'To Review', 'Done', 'Archived'];
+        const LANE_COLORS = {
+            Backlog: '#b2bec3', 'To Do': '#fdcb6e', Next: '#fdcb6e',
+            'In Progress': '#4aa3ff', Review: '#a994ff', 'To Review': '#a994ff',
+            Done: '#28c9a1', Archived: '#778093', Unlabelled: '#74b9ff'
+        };
+        const board = document.getElementById('board');
+        const connections = document.getElementById('connections');
+        const connectionLines = document.getElementById('connection-lines');
         const status = document.getElementById('status');
-        const diagram = document.getElementById('diagram');
-        const source = document.getElementById('source');
-        const rawMermaid = document.getElementById('raw-mermaid');
-        const controlPanel = document.getElementById('control-panel');
-        const graphCanvas = document.getElementById('graph-canvas');
-        let renderVersion = 0;
-        let panZoom = null;
+        const cardElements = new Map();
+        let cards = [];
+        let connectionCount = 0;
+        let connectionsVisible = true;
+        let drawFrame = null;
 
         function appBasePath() {
-            return window.location.pathname
-                .replace(/\/visualize(?:\.html)?\/?$/, '/');
+            return window.location.pathname.replace(/\/visualize(?:\.html)?\/?$/, '/');
         }
 
         function apiPath(endpoint) {
             return `${appBasePath()}api/${endpoint}`;
         }
 
-        controlPanel.href = appBasePath();
-        graphCanvas.href = `${appBasePath()}graph`;
+        document.getElementById('control-panel').href = appBasePath();
+        document.getElementById('graph-canvas').href = `${appBasePath()}graph`;
 
-        function parseViewBox(svg) {
-            const values = (svg.getAttribute('viewBox') || '').trim().split(/[ ,]+/).map(Number);
-            if (values.length === 4 && values.every(Number.isFinite)) return values;
-            const box = svg.getBBox();
-            return [box.x, box.y, box.width || 1, box.height || 1];
+        function textValue(value) {
+            if (typeof value === 'string' || typeof value === 'number') return String(value).trim();
+            if (value && typeof value === 'object') return textValue(value.title ?? value.name ?? value.label);
+            return '';
         }
 
-        function setViewBox() {
-            const { svg, viewBox } = panZoom;
-            svg.setAttribute('viewBox', viewBox.join(' '));
+        function cardPresentation(card) {
+            const rawLabel = textValue(card.label);
+            const parts = rawLabel.split(/\s+—\s+/);
+            const hasStatusPrefix = parts.length > 1 && KNOWN_LANES.includes(parts[0]);
+            const lane = (hasStatusPrefix ? parts[0] : rawLabel) || 'Unlabelled';
+            const metadataTitle = textValue(card.title ?? card.name ?? card.deck?.card?.title);
+            const title = metadataTitle || (hasStatusPrefix ? parts.slice(1).join(' — ') : textValue(card.id));
+            return { lane, title: title || 'Untitled card' };
         }
 
-        function zoomAt(factor, clientX, clientY) {
-            const { svg, viewBox, initial } = panZoom;
-            const rect = svg.getBoundingClientRect();
-            const pointX = clientX === undefined ? rect.left + rect.width / 2 : clientX;
-            const pointY = clientY === undefined ? rect.top + rect.height / 2 : clientY;
-            const x = viewBox[0] + (pointX - rect.left) / rect.width * viewBox[2];
-            const y = viewBox[1] + (pointY - rect.top) / rect.height * viewBox[3];
-            const minimumWidth = initial[2] / 30;
-            const maximumWidth = initial[2] * 10;
-            const nextWidth = Math.max(minimumWidth, Math.min(maximumWidth, viewBox[2] * factor));
-            const actualFactor = nextWidth / viewBox[2];
-            const nextHeight = viewBox[3] * actualFactor;
-            viewBox[0] = x - (x - viewBox[0]) * actualFactor;
-            viewBox[1] = y - (y - viewBox[1]) * actualFactor;
-            viewBox[2] = nextWidth;
-            viewBox[3] = nextHeight;
-            setViewBox();
+        function dependencyId(value) {
+            if (typeof value === 'string' || typeof value === 'number') return String(value);
+            if (value && typeof value === 'object') return textValue(value.id ?? value.cardId ?? value.nodeId);
+            return '';
         }
 
-        function initializePanZoom(svg) {
-            const initial = parseViewBox(svg);
-            panZoom = { svg, initial, viewBox: [...initial] };
-            svg.classList.add('pan-zoom');
-            svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-            setViewBox();
+        function dependenciesFor(card) {
+            const values = Array.isArray(card.dependencies)
+                ? card.dependencies
+                : (card.dependencies == null ? [] : [card.dependencies]);
+            return [...new Set(values.map(dependencyId).filter(Boolean))];
+        }
 
-            let lastPoint = null;
-            svg.addEventListener('wheel', event => {
-                event.preventDefault();
-                zoomAt(event.deltaY < 0 ? .8 : 1.25, event.clientX, event.clientY);
-            }, { passive: false });
-            svg.addEventListener('pointerdown', event => {
-                if (event.button !== 0) return;
-                lastPoint = { x: event.clientX, y: event.clientY };
-                svg.setPointerCapture(event.pointerId);
-                svg.classList.add('dragging');
+        function laneColor(name) {
+            if (LANE_COLORS[name]) return LANE_COLORS[name];
+            let hash = 0;
+            for (const character of name) hash = ((hash << 5) - hash + character.charCodeAt(0)) | 0;
+            return `hsl(${Math.abs(hash) % 360} 62% 66%)`;
+        }
+
+        function createElement(tag, className, text) {
+            const element = document.createElement(tag);
+            if (className) element.className = className;
+            if (text !== undefined) element.textContent = text;
+            return element;
+        }
+
+        function renderBoard(data) {
+            const projectTitle = textValue(data.project_title) || 'DAG Project';
+            document.getElementById('project-title').textContent = projectTitle;
+            document.title = `${projectTitle} · Kanban`;
+            cards = data.nodes || [];
+            cardElements.clear();
+            const lanes = new Map();
+            for (const card of cards) {
+                const presentation = cardPresentation(card);
+                if (!lanes.has(presentation.lane)) lanes.set(presentation.lane, []);
+                lanes.get(presentation.lane).push({ card, presentation });
+            }
+
+            const laneEntries = [...lanes.entries()].sort(([left], [right]) => {
+                const leftIndex = KNOWN_LANES.indexOf(left);
+                const rightIndex = KNOWN_LANES.indexOf(right);
+                if (leftIndex >= 0 || rightIndex >= 0) {
+                    return (leftIndex < 0 ? Infinity : leftIndex) - (rightIndex < 0 ? Infinity : rightIndex);
+                }
+                return left.localeCompare(right);
             });
-            svg.addEventListener('pointermove', event => {
-                if (!lastPoint) return;
-                const rect = svg.getBoundingClientRect();
-                panZoom.viewBox[0] -= (event.clientX - lastPoint.x) / rect.width * panZoom.viewBox[2];
-                panZoom.viewBox[1] -= (event.clientY - lastPoint.y) / rect.height * panZoom.viewBox[3];
-                lastPoint = { x: event.clientX, y: event.clientY };
-                setViewBox();
+
+            const fragment = document.createDocumentFragment();
+            for (const [laneName, laneCards] of laneEntries) {
+                const lane = createElement('section', 'lane');
+                lane.style.setProperty('--lane-color', laneColor(laneName));
+                lane.dataset.lane = laneName;
+                const header = createElement('header', 'lane-header');
+                header.append(createElement('h2', 'lane-title', laneName));
+                header.append(createElement('span', 'lane-count', String(laneCards.length)));
+                const cardList = createElement('div', 'lane-cards');
+                for (const { card, presentation } of laneCards) {
+                    const cardId = String(card.id);
+                    const dependencyIds = dependenciesFor(card);
+                    const article = createElement('article', 'card');
+                    article.tabIndex = 0;
+                    article.dataset.cardId = cardId;
+                    article.setAttribute('aria-label', `${presentation.title}. Card ${cardId}`);
+                    article.append(createElement('p', 'card-id', cardId));
+                    article.append(createElement('h3', 'card-title', presentation.title));
+                    const dependencyText = dependencyIds.length ? dependencyIds.join(', ') : 'None';
+                    const dependencyRow = createElement('p', 'card-dependencies');
+                    dependencyRow.append(createElement('strong', '', 'Depends on: '), document.createTextNode(dependencyText));
+                    article.append(dependencyRow);
+                    article.addEventListener('mouseenter', () => highlightConnections(cardId));
+                    article.addEventListener('mouseleave', clearConnectionHighlight);
+                    article.addEventListener('focus', () => highlightConnections(cardId));
+                    article.addEventListener('blur', clearConnectionHighlight);
+                    cardList.append(article);
+                    cardElements.set(cardId, article);
+                }
+                lane.append(header, cardList);
+                fragment.append(lane);
+            }
+
+            board.querySelectorAll('.lane, .empty').forEach(element => element.remove());
+            board.append(fragment);
+            if (!cards.length) board.append(createElement('div', 'empty', 'No cards to display.'));
+            scheduleConnections();
+        }
+
+        function connectionPath(source, target, boardRect) {
+            const sourceRect = source.getBoundingClientRect();
+            const targetRect = target.getBoundingClientRect();
+            const sourceCenterX = sourceRect.left + sourceRect.width / 2;
+            const targetCenterX = targetRect.left + targetRect.width / 2;
+            const sourceCenterY = sourceRect.top + sourceRect.height / 2 - boardRect.top;
+            const targetCenterY = targetRect.top + targetRect.height / 2 - boardRect.top;
+            const sameLane = source.closest('.lane') === target.closest('.lane');
+
+            if (sameLane) {
+                const startX = sourceRect.right - boardRect.left;
+                const endX = targetRect.right - boardRect.left;
+                const loopX = Math.max(startX, endX) + 34;
+                return `M ${startX} ${sourceCenterY} C ${loopX} ${sourceCenterY}, ${loopX} ${targetCenterY}, ${endX} ${targetCenterY}`;
+            }
+
+            const pointsRight = targetCenterX >= sourceCenterX;
+            const startX = (pointsRight ? sourceRect.right : sourceRect.left) - boardRect.left;
+            const endX = (pointsRight ? targetRect.left : targetRect.right) - boardRect.left;
+            const bend = Math.max(58, Math.abs(endX - startX) * .42);
+            const firstControlX = startX + (pointsRight ? bend : -bend);
+            const secondControlX = endX - (pointsRight ? bend : -bend);
+            return `M ${startX} ${sourceCenterY} C ${firstControlX} ${sourceCenterY}, ${secondControlX} ${targetCenterY}, ${endX} ${targetCenterY}`;
+        }
+
+        function drawConnections() {
+            drawFrame = null;
+            connectionLines.replaceChildren();
+            const width = board.scrollWidth;
+            const height = board.scrollHeight;
+            connections.setAttribute('width', width);
+            connections.setAttribute('height', height);
+            connections.setAttribute('viewBox', `0 0 ${width} ${height}`);
+            connections.hidden = !connectionsVisible;
+            const boardRect = board.getBoundingClientRect();
+            connectionCount = 0;
+
+            for (const card of cards) {
+                const targetId = String(card.id);
+                const target = cardElements.get(targetId);
+                if (!target) continue;
+                for (const sourceId of dependenciesFor(card)) {
+                    const source = cardElements.get(String(sourceId));
+                    if (!source || source === target) continue;
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('class', 'dependency-line');
+                    path.setAttribute('d', connectionPath(source, target, boardRect));
+                    path.setAttribute('marker-end', 'url(#dependency-arrow)');
+                    path.dataset.source = String(sourceId);
+                    path.dataset.target = targetId;
+                    connectionLines.append(path);
+                    connectionCount += 1;
+                }
+            }
+            updateStatus();
+        }
+
+        function scheduleConnections() {
+            if (drawFrame !== null) cancelAnimationFrame(drawFrame);
+            drawFrame = requestAnimationFrame(drawConnections);
+        }
+
+        function highlightConnections(cardId) {
+            connectionLines.querySelectorAll('.dependency-line').forEach(line => {
+                const connected = line.dataset.source === cardId || line.dataset.target === cardId;
+                line.classList.toggle('highlighted', connected);
+                line.classList.toggle('muted', !connected);
             });
-            const endPan = () => {
-                lastPoint = null;
-                svg.classList.remove('dragging');
-            };
-            svg.addEventListener('pointerup', endPan);
-            svg.addEventListener('pointercancel', endPan);
         }
 
-        function resetView() {
-            if (!panZoom) return;
-            panZoom.viewBox = [...panZoom.initial];
-            setViewBox();
+        function clearConnectionHighlight() {
+            connectionLines.querySelectorAll('.dependency-line').forEach(line => line.classList.remove('highlighted', 'muted'));
         }
 
-        async function renderDiagram() {
+        function updateStatus() {
+            const laneCount = board.querySelectorAll('.lane').length;
+            const missing = cards.reduce((total, card) => total + dependenciesFor(card)
+                .filter(id => !cardElements.has(String(id))).length, 0);
+            const missingText = missing ? ` ${missing} unresolved ${missing === 1 ? 'dependency' : 'dependencies'}.` : '';
+            status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}.${missingText}`;
+        }
+
+        async function loadBoard() {
             status.classList.remove('error');
-            status.textContent = 'Loading diagram…';
-            diagram.replaceChildren();
+            status.textContent = 'Loading board…';
             try {
-                const response = await fetch(apiPath('dag/mermaid'), { cache: 'no-store' });
+                const response = await fetch(apiPath('dag'), { cache: 'no-store' });
                 if (!response.ok) throw new Error(`The server returned ${response.status}`);
-                const mermaidSource = await response.text();
-                source.textContent = mermaidSource;
-                rawMermaid.href = apiPath('dag/mermaid');
-
-                const { svg, bindFunctions } = await mermaid.render(
-                    `dag-mermaid-diagram-${++renderVersion}`, mermaidSource
-                );
-                diagram.innerHTML = svg;
-                bindFunctions?.(diagram);
-                initializePanZoom(diagram.querySelector('svg'));
-                status.textContent = 'Diagram rendered. Scroll to zoom and drag to pan.';
+                renderBoard(await response.json());
             } catch (error) {
                 status.classList.add('error');
-                status.textContent = `Could not render the diagram: ${error.message}`;
+                status.textContent = `Could not load the board: ${error.message}`;
             }
         }
 
-        document.getElementById('refresh').addEventListener('click', renderDiagram);
-        document.getElementById('zoom-in').addEventListener('click', () => panZoom && zoomAt(.8));
-        document.getElementById('zoom-out').addEventListener('click', () => panZoom && zoomAt(1.25));
-        document.getElementById('reset-view').addEventListener('click', resetView);
-        renderDiagram();
+        document.getElementById('refresh').addEventListener('click', loadBoard);
+        document.getElementById('toggle-connections').addEventListener('click', event => {
+            connectionsVisible = !connectionsVisible;
+            connections.hidden = !connectionsVisible;
+            event.currentTarget.setAttribute('aria-pressed', String(connectionsVisible));
+            event.currentTarget.textContent = connectionsVisible ? 'Hide Dependencies' : 'Show Dependencies';
+        });
+        new ResizeObserver(scheduleConnections).observe(board);
+        window.addEventListener('resize', scheduleConnections);
+        loadBoard();
     </script>
 </body>
 </html>

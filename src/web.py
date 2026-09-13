@@ -129,10 +129,39 @@ def set_state_file(model: StateFileModel):
 def get_dag():
     dag.load()
     data = dag.to_dict()
-    nodes = data.get("nodes", [])
+    nodes = [dict(node) for node in data.get("nodes", [])]
     raw_edges = data.get("links", data.get("edges", []))
     edges = [{"source": link["source"], "target": link["target"]} for link in raw_edges]
-    return {"nodes": nodes, "edges": edges}
+
+    # Kanban cards express their relationships through a dependencies array.
+    # Keep the graph's edge representation for the control panel and graph view,
+    # while also exposing incoming edges in the card-friendly form. Persisted
+    # dependency metadata is merged in so richer state files need no migration.
+    dependencies_by_node = {node["id"]: [] for node in nodes}
+    for edge in edges:
+        dependencies_by_node.setdefault(edge["target"], []).append(edge["source"])
+    for node in nodes:
+        dependencies = node.get("dependencies", [])
+        if dependencies is None:
+            dependencies = []
+        elif not isinstance(dependencies, (list, tuple, set)):
+            dependencies = [dependencies]
+        merged = []
+        for dependency in [*dependencies, *dependencies_by_node.get(node["id"], [])]:
+            dependency_id = dependency
+            if isinstance(dependency, dict):
+                dependency_id = next(
+                    (dependency.get(key) for key in ("id", "cardId", "nodeId") if dependency.get(key) is not None),
+                    None,
+                )
+            if dependency_id is not None and dependency_id not in merged:
+                merged.append(dependency_id)
+        node["dependencies"] = merged
+    return {
+        "project_title": os.getenv("PROJECT_TITLE", "DAG Project").strip() or "DAG Project",
+        "nodes": nodes,
+        "edges": edges,
+    }
 
 @app.get("/api/dag/mermaid", response_class=PlainTextResponse)
 def get_dag_mermaid():
@@ -141,7 +170,7 @@ def get_dag_mermaid():
 
 @app.get("/visualize", include_in_schema=False)
 @app.get("/visualize/", include_in_schema=False)
-def show_mermaid_visualization():
+def show_kanban_visualization():
     return FileResponse(os.path.join(static_dir, "visualize.html"))
 
 @app.get("/graph", include_in_schema=False)

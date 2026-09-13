@@ -4,7 +4,7 @@ This repository provides a lightweight framework for agentic workflows that can:
 
 - Define a directed acyclic graph (DAG) of tasks or knowledge nodes.
 - Interact through a Telegram bot to add, inspect, and manage the DAG.
-- Render the DAG as Mermaid JS syntax for compatible viewers.
+- Render the DAG as a label-lane Kanban board with dependency arrows.
 - Register Telegram chats for proactive human-review notifications.
 
 ## Project Layout
@@ -22,7 +22,7 @@ agentic-dag/
 │   ├── web.py            # FastAPI API and bot manager.
 │   └── static/
 │       ├── index.html    # Control-panel single-page app.
-│       └── visualize.html # Rendered Mermaid diagram page.
+│       └── visualize.html # Kanban dependency visualization page.
 ├── requirements.txt
 ├── dag_state.json        # Default persisted DAG (created on first save).
 └── README.md
@@ -70,9 +70,12 @@ TELEGRAM_NOTIFICATION_REGISTRY=/path/to/telegram_notification_chat_ids.json
 
 # Optional: defaults beside DAG_STATE_FILE as dag_export.json.
 DAG_EXPORT_FILE=/path/to/dag_export.json
+
+# Optional: shown in web page headings and browser-tab titles.
+PROJECT_TITLE=My Project
 ```
 
-`DAG_STATE_FILE` is useful when the tracker code and its persisted project state live in separate directories. The bot loads this file on startup and saves every DAG mutation back to the same path.
+`DAG_STATE_FILE` is useful when the tracker code and its persisted project state live in separate directories. The bot loads this file on startup and saves every DAG mutation back to the same path. `PROJECT_TITLE` defaults to `DAG Project` when it is unset or blank.
 
 ## Web UI
 
@@ -92,7 +95,7 @@ The server prefers port `8080` and automatically tries the next available port i
 - Node and edge CRUD controls, with cycle protection enforced by the API.
 - Telegram bot start/stop controls, registered-chat management, pending-review status, and notification sending.
 - State-file selection with recent-file history in browser `localStorage`.
-- A pan-and-zoom Mermaid.js page at `/visualize`, plus the raw Mermaid source at `/api/dag/mermaid`.
+- A horizontally scrollable Kanban page at `/visualize`; node labels form lanes and curved arrows connect dependencies.
 - A dedicated zoomable D3 Graph Canvas at `/graph` for navigating large DAGs without shrinking them to fit; clicking a node opens a persistent detail panel.
 
 The control panel polls the DAG and Telegram status every five seconds. It retains the existing node layout during ordinary polling; the force simulation is reheated only when nodes, labels, or edges change.
@@ -100,7 +103,7 @@ The control panel polls the DAG and Telegram status every five seconds. It retai
 ### Architecture
 
 ```text
-Browser control panel / Mermaid page
+Browser control panel / Kanban page
                  │ HTTP
                  ▼
 FastAPI server (src/web.py)
@@ -140,7 +143,7 @@ The Settings tab applies a state-file path to the running server and saves it lo
 |---|---|---|
 | `GET` | `/api/config/state-file` | Get the active state-file path. |
 | `PUT` | `/api/config/state-file` | Set the active state-file path: `{"path": "..."}`. |
-| `GET` | `/api/dag` | Get nodes and edges. |
+| `GET` | `/api/dag` | Get the project title, nodes (including normalized `dependencies`), and edges. |
 | `GET` | `/api/dag/mermaid` | Get generated Mermaid flowchart source. |
 | `POST` | `/api/dag/nodes` | Add a node: `{"id": "...", "label": "..."}`. |
 | `PUT` | `/api/dag/nodes/{node_id}` | Update a node label. |
@@ -153,13 +156,13 @@ The Settings tab applies a state-file path to the running server and saves it lo
 | `GET` | `/api/telegram/chats` | List registered chat IDs. |
 | `DELETE` | `/api/telegram/chats/{chat_id}` | Remove a registered chat. |
 | `POST` | `/api/telegram/notify` | Send a task-linked notification. |
-| `GET` | `/visualize` | Render the current DAG with Mermaid.js. |
+| `GET` | `/visualize` | Render the current DAG as a label-lane Kanban board. |
 | `GET` | `/graph` | Open the full-screen D3 Graph Canvas. |
 
 ### Deployment notes
 
 - The server serves the static control panel at `/` and enables permissive CORS for development.
-- The browser loads D3.js and Mermaid.js from CDNs, so a browser rendering those views needs access to those CDNs.
+- The control panel and Graph Canvas load D3.js from a CDN; the Kanban view has no external frontend dependency.
 - The UI does not provide authentication. Put it behind suitable access controls before exposing it publicly.
 
 ### Web UI roadmap
@@ -195,19 +198,11 @@ The command sends a task-linked message to every locally registered chat and rec
 
 The sender emits flushed UTC diagnostics for `send_started`, Telegram acceptance, reply-mapping registration, and completion. They include the DAG node and Telegram message ID, but never a chat ID, bot token, or notification body. A failed send or mapping registration exits non-zero immediately after attempting the remaining registered recipients.
 
-## Mermaid Visualization
+## Kanban Visualization
 
-`visualize.py` converts the graph to Mermaid syntax:
+When the web server is running, open `/visualize` for the Kanban rendering of the current DAG. Each card's label determines its lane. Existing workflow labels such as `To Do — Task title` use the leading status as the lane and the remainder as the card title. Directed DAG edges are exposed as each target card's `dependencies` array, and persisted dependency metadata is merged with them. The board draws every resolved dependency as a curved arrow from the dependency to the dependent card.
 
-```mermaid
-flowchart TD
-    A[Start] --> B[Process]
-    B --> C[End]
-```
-
-When the web server is running, open `/visualize` for an interactive Mermaid.js rendering of the current DAG. The page also links to the raw Mermaid source at `/api/dag/mermaid`.
-
-Use a Mermaid-compatible Markdown preview, GitHub, or Mermaid Live Editor to render the result.
+The Telegram `/visualize` command and `/api/dag/mermaid` endpoint continue to provide Mermaid source for text-based clients; the browser visualization itself no longer loads or renders Mermaid.
 
 ## Persistence
 

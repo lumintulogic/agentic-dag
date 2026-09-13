@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAG Graph Canvas</title>
+    <title>DAG Project · Graph Canvas</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         :root {
@@ -65,10 +65,10 @@
 </head>
 <body>
     <header>
-        <h1>DAG Graph Canvas</h1>
+        <h1 id="project-title">DAG Project</h1>
         <div class="actions">
             <a id="control-panel">Control Panel</a>
-            <a id="mermaid-view">Mermaid View</a>
+            <a id="kanban-view">Kanban View</a>
             <button id="reset" type="button">Reset View</button>
             <button id="refresh" type="button">Refresh Graph</button>
         </div>
@@ -143,7 +143,7 @@
         }
 
         document.getElementById('control-panel').href = appBasePath();
-        document.getElementById('mermaid-view').href = `${appBasePath()}visualize`;
+        document.getElementById('kanban-view').href = `${appBasePath()}visualize`;
 
         function getStatus(label) {
             const state = (label || '').split(' — ')[0].trim();
@@ -268,7 +268,11 @@
             try {
                 const response = await fetch(apiPath('dag'), { cache: 'no-store' });
                 if (!response.ok) throw new Error(`The server returned ${response.status}`);
-                renderGraph(await response.json());
+                const data = await response.json();
+                const projectTitle = (data.project_title || 'DAG Project').trim() || 'DAG Project';
+                document.getElementById('project-title').textContent = projectTitle;
+                document.title = `${projectTitle} · Graph Canvas`;
+                renderGraph(data);
                 status.textContent = `${nodes.length} nodes, ${links.length} edges. Drag nodes; scroll or pinch to zoom; drag the background to pan.`;
             } catch (error) {
                 status.classList.add('error');

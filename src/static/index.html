@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DAG Control Panel</title>
+    <title>DAG Project · Control Panel</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <style>
         :root {
@@ -441,10 +441,10 @@
 
     <!-- Header -->
     <header>
-        <h1>DAG Control Panel</h1>
+        <h1 id="project-title">DAG Project</h1>
         <div class="header-controls">
             <button type="button" onclick="window.location.href='graph'">Graph Canvas</button>
-            <button type="button" onclick="window.location.href='visualize'">Mermaid View</button>
+            <button type="button" onclick="window.location.href='visualize'">Kanban View</button>
             <div class="status-indicator" id="header-bot-status">
                 <div class="dot" id="header-dot"></div>
                 <span id="header-status-text">Bot Stopped</span>
@@ -1120,6 +1120,10 @@
                 const res = await fetch('api/dag');
                 if (!res.ok) throw new Error('Failed to fetch DAG');
                 const data = await res.json();
+
+                const projectTitle = (data.project_title || 'DAG Project').trim() || 'DAG Project';
+                document.getElementById('project-title').innerText = projectTitle;
+                document.title = `${projectTitle} · Control Panel`;
                 
                 // Deep copy arrays for D3 safety while checking equality
                 dagData.nodes = data.nodes || [];
