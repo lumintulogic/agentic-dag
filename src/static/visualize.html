@@ -103,7 +103,7 @@
         .lane {
             --lane-color: #8b7cf6;
             position: relative;
-            z-index: 1;
+            z-index: auto;
             flex: 0 0 292px;
             width: 292px;
             height: calc(100vh - 150px);
@@ -138,6 +138,59 @@
             color: var(--muted);
             text-align: center;
             font-size: .72rem;
+        }
+        .offscreen-dock {
+            position: relative;
+            z-index: 5;
+            display: flex;
+            flex: 0 0 34px;
+            min-width: 0;
+            align-items: center;
+            gap: .35rem;
+            height: 34px;
+            padding: .25rem .35rem;
+            overflow: hidden;
+            border: 1px dashed #444b6d;
+            border-radius: 6px;
+            background: rgba(17, 19, 33, .82);
+        }
+        .offscreen-dock.top { margin-bottom: .55rem; }
+        .offscreen-dock.bottom { margin-top: .55rem; }
+        .dock-direction {
+            flex: none;
+            color: var(--muted);
+            font-size: .72rem;
+            line-height: 1;
+        }
+        .dock-items {
+            display: flex;
+            min-width: 0;
+            flex: 1;
+            gap: .3rem;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scrollbar-width: none;
+        }
+        .dock-items::-webkit-scrollbar { display: none; }
+        .offscreen-card {
+            flex: 0 0 auto;
+            max-width: 11rem;
+            height: 24px;
+            padding: .18rem .45rem;
+            overflow: hidden;
+            border-color: color-mix(in srgb, var(--lane-color) 60%, #4a5275);
+            border-radius: 5px;
+            background: #252a43;
+            color: #dfe2f4;
+            font-size: .68rem;
+            line-height: 1;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .offscreen-card:hover, .offscreen-card:focus-visible {
+            outline: none;
+            border-color: var(--lane-color);
+            background: #323957;
         }
         .lane-cards {
             display: flex;
@@ -335,6 +388,9 @@
         const status = document.getElementById('status');
         const cardModal = document.getElementById('card-modal');
         const cardElements = new Map();
+        const cardDataById = new Map();
+        const cardPresentations = new Map();
+        const dockElements = new Map();
         let cards = [];
         let connectionCount = 0;
         let totalConnectionCount = 0;
@@ -418,9 +474,14 @@
             document.title = `${projectTitle} · Kanban`;
             cards = data.nodes || [];
             cardElements.clear();
+            cardDataById.clear();
+            cardPresentations.clear();
             const lanes = new Map();
             for (const card of cards) {
                 const presentation = cardPresentation(card);
+                const cardId = String(card.id);
+                cardDataById.set(cardId, card);
+                cardPresentations.set(cardId, presentation);
                 if (!lanes.has(presentation.lane)) lanes.set(presentation.lane, []);
                 lanes.get(presentation.lane).push({ card, presentation });
             }
@@ -442,6 +503,12 @@
                 const header = createElement('header', 'lane-header');
                 header.append(createElement('h2', 'lane-title', laneName));
                 header.append(createElement('span', 'lane-count', String(laneCards.length)));
+                const topDock = createElement('div', 'offscreen-dock top');
+                topDock.setAttribute('aria-label', `Cards above the visible ${laneName} lane area`);
+                topDock.append(
+                    createElement('span', 'dock-direction', '↑'),
+                    createElement('div', 'dock-items')
+                );
                 const cardList = createElement('div', 'lane-cards');
                 cardList.addEventListener('scroll', scheduleConnections, { passive: true });
                 for (const { card, presentation } of laneCards) {
@@ -472,7 +539,13 @@
                     cardList.append(article);
                     cardElements.set(cardId, article);
                 }
-                lane.append(header, cardList);
+                const bottomDock = createElement('div', 'offscreen-dock bottom');
+                bottomDock.setAttribute('aria-label', `Cards below the visible ${laneName} lane area`);
+                bottomDock.append(
+                    createElement('span', 'dock-direction', '↓'),
+                    createElement('div', 'dock-items')
+                );
+                lane.append(header, topDock, cardList, bottomDock);
                 fragment.append(lane);
             }
 
@@ -482,19 +555,61 @@
             scheduleConnections();
         }
 
-        function visibleCardGeometry(element, boardRect) {
+        function elementGeometry(element, boardRect) {
             const rect = element.getBoundingClientRect();
-            const viewport = element.closest('.lane-cards').getBoundingClientRect();
-            const visibleTop = Math.max(rect.top, viewport.top);
-            const visibleBottom = Math.min(rect.bottom, viewport.bottom);
-            if (visibleBottom - visibleTop < 8) return null;
             return {
                 left: rect.left - boardRect.left,
                 right: rect.right - boardRect.left,
                 centerX: rect.left + rect.width / 2 - boardRect.left,
-                centerY: (visibleTop + visibleBottom) / 2 - boardRect.top,
+                centerY: rect.top + rect.height / 2 - boardRect.top,
                 lane: element.closest('.lane')
             };
+        }
+
+        function cardViewportState(element, boardRect) {
+            const rect = element.getBoundingClientRect();
+            const viewport = element.closest('.lane-cards').getBoundingClientRect();
+            const visibleTop = Math.max(rect.top, viewport.top);
+            const visibleBottom = Math.min(rect.bottom, viewport.bottom);
+            if (visibleBottom - visibleTop >= 8) {
+                const geometry = elementGeometry(element, boardRect);
+                geometry.centerY = (visibleTop + visibleBottom) / 2 - boardRect.top;
+                return { geometry };
+            }
+            return {
+                position: rect.bottom <= viewport.top ? 'top' : 'bottom',
+                lane: element.closest('.lane')
+            };
+        }
+
+        function clearOffscreenDocks() {
+            board.querySelectorAll('.dock-items').forEach(items => items.replaceChildren());
+            dockElements.clear();
+        }
+
+        function parkOffscreenCard(cardId, position) {
+            if (dockElements.has(cardId)) return dockElements.get(cardId);
+            const cardElement = cardElements.get(cardId);
+            const card = cardDataById.get(cardId);
+            const presentation = cardPresentations.get(cardId);
+            if (!cardElement || !card || !presentation) return null;
+            const lane = cardElement.closest('.lane');
+            const dock = lane.querySelector(`.offscreen-dock.${position} .dock-items`);
+            if (!dock) return null;
+
+            const proxy = createElement('button', 'offscreen-card', presentation.title);
+            proxy.type = 'button';
+            proxy.dataset.cardId = cardId;
+            proxy.title = `${presentation.title} (${cardId})`;
+            proxy.setAttribute('aria-label', `${presentation.title}, card ${position === 'top' ? 'above' : 'below'} the visible lane`);
+            proxy.addEventListener('mouseenter', () => highlightConnections(cardId));
+            proxy.addEventListener('mouseleave', clearConnectionHighlight);
+            proxy.addEventListener('focus', () => highlightConnections(cardId));
+            proxy.addEventListener('blur', clearConnectionHighlight);
+            proxy.addEventListener('click', () => showCardDetails(card, presentation));
+            dock.append(proxy);
+            dockElements.set(cardId, proxy);
+            return proxy;
         }
 
         function connectionPath(source, target) {
@@ -524,27 +639,50 @@
             const boardRect = board.getBoundingClientRect();
             connectionCount = 0;
             totalConnectionCount = 0;
+            clearOffscreenDocks();
+            const relationships = [];
+            const endpointStates = new Map();
 
             for (const card of cards) {
                 const targetId = String(card.id);
                 const target = cardElements.get(targetId);
                 if (!target) continue;
                 for (const sourceId of dependenciesFor(card)) {
-                    const source = cardElements.get(String(sourceId));
+                    const normalizedSourceId = String(sourceId);
+                    const source = cardElements.get(normalizedSourceId);
                     if (!source || source === target) continue;
                     totalConnectionCount += 1;
-                    const sourceGeometry = visibleCardGeometry(source, boardRect);
-                    const targetGeometry = visibleCardGeometry(target, boardRect);
-                    if (!sourceGeometry || !targetGeometry) continue;
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    path.setAttribute('class', 'dependency-line');
-                    path.setAttribute('d', connectionPath(sourceGeometry, targetGeometry));
-                    path.setAttribute('marker-end', 'url(#dependency-arrow)');
-                    path.dataset.source = String(sourceId);
-                    path.dataset.target = targetId;
-                    connectionLines.append(path);
-                    connectionCount += 1;
+                    relationships.push({ sourceId: normalizedSourceId, targetId });
+                    if (!endpointStates.has(normalizedSourceId)) {
+                        endpointStates.set(normalizedSourceId, cardViewportState(source, boardRect));
+                    }
+                    if (!endpointStates.has(targetId)) {
+                        endpointStates.set(targetId, cardViewportState(target, boardRect));
+                    }
                 }
+            }
+
+            for (const [cardId, state] of endpointStates) {
+                if (state.geometry) continue;
+                const proxy = parkOffscreenCard(cardId, state.position);
+                if (proxy) state.proxy = proxy;
+            }
+            for (const state of endpointStates.values()) {
+                if (state.proxy) state.geometry = elementGeometry(state.proxy, boardRect);
+            }
+
+            for (const { sourceId, targetId } of relationships) {
+                const sourceGeometry = endpointStates.get(sourceId)?.geometry;
+                const targetGeometry = endpointStates.get(targetId)?.geometry;
+                if (!sourceGeometry || !targetGeometry) continue;
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('class', 'dependency-line');
+                path.setAttribute('d', connectionPath(sourceGeometry, targetGeometry));
+                path.setAttribute('marker-end', 'url(#dependency-arrow)');
+                path.dataset.source = sourceId;
+                path.dataset.target = targetId;
+                connectionLines.append(path);
+                connectionCount += 1;
             }
             updateStatus();
         }
@@ -574,7 +712,10 @@
             const connectionText = connectionCount === totalConnectionCount
                 ? `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
                 : `${connectionCount} of ${totalConnectionCount} connections visible`;
-            status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionText}.${missingText}`;
+            const parkedText = dockElements.size
+                ? ` · ${dockElements.size} parked ${dockElements.size === 1 ? 'card' : 'cards'}`
+                : '';
+            status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionText}${parkedText}.${missingText}`;
         }
 
         async function loadBoard() {
