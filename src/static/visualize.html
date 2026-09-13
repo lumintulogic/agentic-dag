@@ -92,8 +92,8 @@
         .dependency-line {
             fill: none;
             stroke: var(--line);
-            stroke-width: 2;
-            stroke-opacity: .68;
+            stroke-width: 1.75;
+            stroke-opacity: .48;
             vector-effect: non-scaling-stroke;
             filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .7));
             transition: stroke-opacity .15s ease, stroke-width .15s ease;
@@ -154,6 +154,8 @@
             position: relative;
             z-index: 4;
             min-height: 92px;
+            max-width: 100%;
+            overflow: hidden;
             padding: .85rem;
             border: 1px solid #3d4362;
             border-left: 3px solid var(--lane-color);
@@ -168,11 +170,82 @@
             border-color: var(--lane-color);
             box-shadow: 0 9px 20px rgba(0, 0, 0, .3);
         }
-        .card-id { margin: 0 0 .4rem; color: var(--muted); font: 600 .7rem ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
-        .card-title { margin: 0; font-size: .9rem; line-height: 1.35; overflow-wrap: anywhere; }
-        .card-dependencies { margin: .7rem 0 0; color: var(--muted); font-size: .72rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .card-id {
+            margin: 0 0 .4rem;
+            overflow: hidden;
+            color: var(--muted);
+            font: 600 .7rem ui-monospace, SFMono-Regular, Menlo, monospace;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .card-title {
+            display: -webkit-box;
+            max-height: 2.7em;
+            margin: 0;
+            overflow: hidden;
+            font-size: .9rem;
+            line-height: 1.35;
+            overflow-wrap: anywhere;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            line-clamp: 2;
+        }
+        .card-dependencies {
+            margin: .7rem 0 0;
+            overflow: hidden;
+            color: var(--muted);
+            font-size: .72rem;
+            line-height: 1.35;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
         .card-dependencies strong { color: #d7daf0; }
         .empty { width: 100%; margin: auto; color: var(--muted); text-align: center; }
+        dialog {
+            width: min(660px, calc(100vw - 2rem));
+            max-height: min(82vh, 760px);
+            padding: 0;
+            overflow: hidden;
+            border: 1px solid #4a5275;
+            border-radius: 12px;
+            background: #1d2136;
+            color: var(--text);
+            box-shadow: 0 24px 70px rgba(0, 0, 0, .58);
+        }
+        dialog::backdrop { background: rgba(5, 7, 16, .76); backdrop-filter: blur(3px); }
+        .modal-panel { display: flex; max-height: min(82vh, 760px); flex-direction: column; }
+        .modal-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1.1rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .modal-lane { margin: 0 0 .3rem; color: var(--muted); font-size: .75rem; font-weight: 700; text-transform: uppercase; }
+        .modal-title { margin: 0; font-size: 1.15rem; line-height: 1.35; overflow-wrap: anywhere; }
+        .modal-close { flex: none; padding: .25rem .55rem; font-size: 1.2rem; line-height: 1; }
+        .modal-body { padding: 1.15rem 1.2rem 1.25rem; overflow: auto; }
+        .modal-details { display: grid; grid-template-columns: 7rem minmax(0, 1fr); gap: .65rem 1rem; margin: 0; }
+        .modal-details dt { color: var(--muted); font-size: .78rem; font-weight: 700; }
+        .modal-details dd { margin: 0; overflow-wrap: anywhere; font-size: .86rem; white-space: pre-wrap; }
+        .modal-description { margin-top: 1.1rem; }
+        .modal-description h3 { margin: 0 0 .45rem; font-size: .82rem; }
+        .modal-description p { margin: 0; color: #d9dcef; font-size: .86rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .raw-details { margin-top: 1.1rem; }
+        .raw-details summary { color: var(--muted); cursor: pointer; font-size: .8rem; font-weight: 700; }
+        .raw-details pre {
+            max-height: 18rem;
+            margin: .65rem 0 0;
+            padding: .8rem;
+            overflow: auto;
+            border-radius: 7px;
+            background: #121525;
+            color: #d9dcef;
+            font: .75rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
         @media (max-width: 720px) {
             body { overflow: auto; }
             header { align-items: flex-start; flex-direction: column; }
@@ -222,6 +295,33 @@
         </div>
     </main>
 
+    <dialog id="card-modal" aria-labelledby="modal-title">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div>
+                    <p id="modal-lane" class="modal-lane"></p>
+                    <h2 id="modal-title" class="modal-title"></h2>
+                </div>
+                <button id="modal-close" class="modal-close" type="button" aria-label="Close card details">×</button>
+            </div>
+            <div class="modal-body">
+                <dl class="modal-details">
+                    <dt>Card ID</dt><dd id="modal-id"></dd>
+                    <dt>Label</dt><dd id="modal-label"></dd>
+                    <dt>Dependencies</dt><dd id="modal-dependencies"></dd>
+                </dl>
+                <section id="modal-description-section" class="modal-description" hidden>
+                    <h3>Description</h3>
+                    <p id="modal-description"></p>
+                </section>
+                <details class="raw-details">
+                    <summary>All card data</summary>
+                    <pre id="modal-json"></pre>
+                </details>
+            </div>
+        </div>
+    </dialog>
+
     <script>
         const KNOWN_LANES = ['Backlog', 'To Do', 'Next', 'In Progress', 'Review', 'To Review', 'Done', 'Archived'];
         const LANE_COLORS = {
@@ -233,9 +333,11 @@
         const connections = document.getElementById('connections');
         const connectionLines = document.getElementById('connection-lines');
         const status = document.getElementById('status');
+        const cardModal = document.getElementById('card-modal');
         const cardElements = new Map();
         let cards = [];
         let connectionCount = 0;
+        let totalConnectionCount = 0;
         let connectionsVisible = true;
         let drawFrame = null;
 
@@ -293,6 +395,23 @@
             return element;
         }
 
+        function showCardDetails(card, presentation) {
+            const dependencyIds = dependenciesFor(card);
+            const description = textValue(card.description ?? card.deck?.card?.description);
+            document.getElementById('modal-lane').textContent = presentation.lane;
+            document.getElementById('modal-title').textContent = presentation.title;
+            document.getElementById('modal-id').textContent = textValue(card.id) || '—';
+            document.getElementById('modal-label').textContent = textValue(card.label) || 'Unlabelled';
+            document.getElementById('modal-dependencies').textContent = dependencyIds.length
+                ? dependencyIds.join(', ')
+                : 'None';
+            document.getElementById('modal-description').textContent = description;
+            document.getElementById('modal-description-section').hidden = !description;
+            document.getElementById('modal-json').textContent = JSON.stringify(card, null, 2);
+            cardModal.querySelector('.raw-details').open = false;
+            cardModal.showModal();
+        }
+
         function renderBoard(data) {
             const projectTitle = textValue(data.project_title) || 'DAG Project';
             document.getElementById('project-title').textContent = projectTitle;
@@ -332,6 +451,7 @@
                     article.tabIndex = 0;
                     article.dataset.cardId = cardId;
                     article.setAttribute('aria-label', `${presentation.title}. Card ${cardId}`);
+                    article.setAttribute('aria-haspopup', 'dialog');
                     article.append(createElement('p', 'card-id', cardId));
                     article.append(createElement('h3', 'card-title', presentation.title));
                     const dependencyText = dependencyIds.length ? dependencyIds.join(', ') : 'None';
@@ -342,6 +462,13 @@
                     article.addEventListener('mouseleave', clearConnectionHighlight);
                     article.addEventListener('focus', () => highlightConnections(cardId));
                     article.addEventListener('blur', clearConnectionHighlight);
+                    article.addEventListener('click', () => showCardDetails(card, presentation));
+                    article.addEventListener('keydown', event => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            showCardDetails(card, presentation);
+                        }
+                    });
                     cardList.append(article);
                     cardElements.set(cardId, article);
                 }
@@ -355,29 +482,34 @@
             scheduleConnections();
         }
 
-        function connectionPath(source, target, boardRect) {
-            const sourceRect = source.getBoundingClientRect();
-            const targetRect = target.getBoundingClientRect();
-            const sourceCenterX = sourceRect.left + sourceRect.width / 2;
-            const targetCenterX = targetRect.left + targetRect.width / 2;
-            const sourceCenterY = sourceRect.top + sourceRect.height / 2 - boardRect.top;
-            const targetCenterY = targetRect.top + targetRect.height / 2 - boardRect.top;
-            const sameLane = source.closest('.lane') === target.closest('.lane');
+        function visibleCardGeometry(element, boardRect) {
+            const rect = element.getBoundingClientRect();
+            const viewport = element.closest('.lane-cards').getBoundingClientRect();
+            const visibleTop = Math.max(rect.top, viewport.top);
+            const visibleBottom = Math.min(rect.bottom, viewport.bottom);
+            if (visibleBottom - visibleTop < 8) return null;
+            return {
+                left: rect.left - boardRect.left,
+                right: rect.right - boardRect.left,
+                centerX: rect.left + rect.width / 2 - boardRect.left,
+                centerY: (visibleTop + visibleBottom) / 2 - boardRect.top,
+                lane: element.closest('.lane')
+            };
+        }
+
+        function connectionPath(source, target) {
+            const sameLane = source.lane === target.lane;
 
             if (sameLane) {
-                const startX = sourceRect.right - boardRect.left;
-                const endX = targetRect.right - boardRect.left;
-                const loopX = Math.max(startX, endX) + 34;
-                return `M ${startX} ${sourceCenterY} C ${loopX} ${sourceCenterY}, ${loopX} ${targetCenterY}, ${endX} ${targetCenterY}`;
+                const gutterX = Math.min(source.left, target.left) - 9;
+                return `M ${source.left} ${source.centerY} C ${gutterX} ${source.centerY}, ${gutterX} ${target.centerY}, ${target.left} ${target.centerY}`;
             }
 
-            const pointsRight = targetCenterX >= sourceCenterX;
-            const startX = (pointsRight ? sourceRect.right : sourceRect.left) - boardRect.left;
-            const endX = (pointsRight ? targetRect.left : targetRect.right) - boardRect.left;
-            const bend = Math.max(58, Math.abs(endX - startX) * .42);
-            const firstControlX = startX + (pointsRight ? bend : -bend);
-            const secondControlX = endX - (pointsRight ? bend : -bend);
-            return `M ${startX} ${sourceCenterY} C ${firstControlX} ${sourceCenterY}, ${secondControlX} ${targetCenterY}, ${endX} ${targetCenterY}`;
+            const pointsRight = target.centerX >= source.centerX;
+            const startX = pointsRight ? source.right : source.left;
+            const endX = pointsRight ? target.left : target.right;
+            const midpointX = (startX + endX) / 2;
+            return `M ${startX} ${source.centerY} C ${midpointX} ${source.centerY}, ${midpointX} ${target.centerY}, ${endX} ${target.centerY}`;
         }
 
         function drawConnections() {
@@ -391,6 +523,7 @@
             connections.hidden = !connectionsVisible;
             const boardRect = board.getBoundingClientRect();
             connectionCount = 0;
+            totalConnectionCount = 0;
 
             for (const card of cards) {
                 const targetId = String(card.id);
@@ -399,9 +532,13 @@
                 for (const sourceId of dependenciesFor(card)) {
                     const source = cardElements.get(String(sourceId));
                     if (!source || source === target) continue;
+                    totalConnectionCount += 1;
+                    const sourceGeometry = visibleCardGeometry(source, boardRect);
+                    const targetGeometry = visibleCardGeometry(target, boardRect);
+                    if (!sourceGeometry || !targetGeometry) continue;
                     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                     path.setAttribute('class', 'dependency-line');
-                    path.setAttribute('d', connectionPath(source, target, boardRect));
+                    path.setAttribute('d', connectionPath(sourceGeometry, targetGeometry));
                     path.setAttribute('marker-end', 'url(#dependency-arrow)');
                     path.dataset.source = String(sourceId);
                     path.dataset.target = targetId;
@@ -434,7 +571,10 @@
             const missing = cards.reduce((total, card) => total + dependenciesFor(card)
                 .filter(id => !cardElements.has(String(id))).length, 0);
             const missingText = missing ? ` ${missing} unresolved ${missing === 1 ? 'dependency' : 'dependencies'}.` : '';
-            status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}.${missingText}`;
+            const connectionText = connectionCount === totalConnectionCount
+                ? `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
+                : `${connectionCount} of ${totalConnectionCount} connections visible`;
+            status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionText}.${missingText}`;
         }
 
         async function loadBoard() {
@@ -456,6 +596,10 @@
             connections.hidden = !connectionsVisible;
             event.currentTarget.setAttribute('aria-pressed', String(connectionsVisible));
             event.currentTarget.textContent = connectionsVisible ? 'Hide Dependencies' : 'Show Dependencies';
+        });
+        document.getElementById('modal-close').addEventListener('click', () => cardModal.close());
+        cardModal.addEventListener('click', event => {
+            if (event.target === cardModal) cardModal.close();
         });
         new ResizeObserver(scheduleConnections).observe(board);
         window.addEventListener('resize', scheduleConnections);

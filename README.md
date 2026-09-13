@@ -201,7 +201,7 @@ The sender emits flushed UTC diagnostics for `send_started`, Telegram acceptance
 
 ## Kanban Visualization
 
-When the web server is running, open `/visualize` for the Kanban rendering of the current DAG. Each card's label determines its lane. Existing workflow labels such as `To Do — Task title` use the leading status as the lane and the remainder as the card title. Directed DAG edges are exposed as each target card's `dependencies` array, and persisted dependency metadata is merged with them. The board draws every resolved dependency as a curved arrow from the dependency to the dependent card.
+When the web server is running, open `/visualize` for the Kanban rendering of the current DAG. Each card's label determines its lane. Existing workflow labels such as `To Do — Task title` use the leading status as the lane and the remainder as the card title. Directed DAG edges are exposed as each target card's `dependencies` array, and persisted dependency metadata is merged with them. The board draws visible dependencies as compact curved arrows from the dependency to the dependent card; arrows to cards outside a scrolled lane viewport are hidden until those cards are visible. Card summaries are truncated to fit their borders, and selecting a card opens its complete details in a modal.
 
 The Telegram `/visualize` command and `/api/dag/mermaid` endpoint continue to provide Mermaid source for text-based clients; the browser visualization itself no longer loads or renders Mermaid.
 
