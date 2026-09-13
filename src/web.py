@@ -15,9 +15,16 @@ from .visualize import generate_mermaid
 from .notifications import _load_registry, _save_registry
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
+PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 # The control panel can start the Telegram bot itself, so its process must load
 # the same .env configuration as the standalone bot entry point.
-load_dotenv()
+load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+
+
+def get_project_title() -> str:
+    """Return the configured project title, with a stable UI fallback."""
+    return os.getenv("PROJECT_TITLE", "DAG Project").strip() or "DAG Project"
 
 class TelegramBotManager:
     def __init__(self):
@@ -158,7 +165,7 @@ def get_dag():
                 merged.append(dependency_id)
         node["dependencies"] = merged
     return {
-        "project_title": os.getenv("PROJECT_TITLE", "DAG Project").strip() or "DAG Project",
+        "project_title": get_project_title(),
         "nodes": nodes,
         "edges": edges,
     }

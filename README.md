@@ -71,7 +71,8 @@ TELEGRAM_NOTIFICATION_REGISTRY=/path/to/telegram_notification_chat_ids.json
 # Optional: defaults beside DAG_STATE_FILE as dag_export.json.
 DAG_EXPORT_FILE=/path/to/dag_export.json
 
-# Optional: shown in web page headings and browser-tab titles.
+# Optional: shown in web page headings and browser-tab titles. Restart the web
+# server after changing this value.
 PROJECT_TITLE=My Project
 ```
 

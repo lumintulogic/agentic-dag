@@ -68,7 +68,8 @@
         #board-scroll {
             flex: 1;
             min-height: 0;
-            overflow: auto;
+            overflow-x: auto;
+            overflow-y: hidden;
             padding: 1.1rem;
             scrollbar-color: #4b5173 var(--surface);
         }
@@ -105,12 +106,15 @@
             z-index: 1;
             flex: 0 0 292px;
             width: 292px;
-            min-height: calc(100vh - 150px);
+            height: calc(100vh - 150px);
+            min-height: 0;
             padding: .85rem;
             border: 1px solid var(--border);
             border-top: 3px solid var(--lane-color);
             border-radius: 10px;
             background: linear-gradient(180deg, rgba(36, 40, 65, .95), rgba(26, 29, 48, .95));
+            display: flex;
+            flex-direction: column;
         }
         .lane-header {
             display: flex;
@@ -135,7 +139,17 @@
             text-align: center;
             font-size: .72rem;
         }
-        .lane-cards { display: flex; flex-direction: column; gap: .75rem; }
+        .lane-cards {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+            flex-direction: column;
+            gap: .75rem;
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding: 0 .25rem .25rem 0;
+            scrollbar-color: #555d84 transparent;
+        }
         .card {
             position: relative;
             z-index: 4;
@@ -165,7 +179,7 @@
             .actions { justify-content: flex-start; }
             main { min-height: 72vh; }
             .legend { display: none; }
-            .lane { flex-basis: 265px; width: 265px; min-height: 65vh; }
+            .lane { flex-basis: 265px; width: 265px; height: 65vh; }
         }
         @media (prefers-reduced-motion: reduce) {
             *, *::before, *::after { transition: none !important; }
@@ -310,6 +324,7 @@
                 header.append(createElement('h2', 'lane-title', laneName));
                 header.append(createElement('span', 'lane-count', String(laneCards.length)));
                 const cardList = createElement('div', 'lane-cards');
+                cardList.addEventListener('scroll', scheduleConnections, { passive: true });
                 for (const { card, presentation } of laneCards) {
                     const cardId = String(card.id);
                     const dependencyIds = dependenciesFor(card);
