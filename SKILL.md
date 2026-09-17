@@ -1,6 +1,6 @@
 ---
 name: agentic-dag
-description: Track workspace tasks as a DAG with persistent state, Telegram review notifications, and a web observability UI.
+description: Track workspace tasks as a DAG with persistent state, Telegram review notifications, and a web observability UI scoped to the current workspace where a harness is run.
 ---
 
 # Agentic DAG & Workspace Progress Tracker Skill
@@ -159,7 +159,8 @@ python -m src.run_web
 
 When assigned a workspace task:
 
-1. **Load/Inspect DAG**: Check `dag_state.json` or query `GET /api/dag` to understand existing tasks and context.
-2. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed.
-3. **Update Status**: Move nodes from `To Do` to `In Progress` when work starts, and to `Done` upon verification.
-4. **Request Review**: Move node to `Review` and invoke `python -m src.notify` when human feedback or sign-off is needed.
+1. **Workspace Scope**: Ensure all DAG operations and task tracking are strictly confined to the current workspace where the harness is run.
+2. **Load/Inspect DAG**: Check `dag_state.json` or query `GET /api/dag` to understand existing tasks and context.
+3. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed.
+4. **Update Status**: Move nodes from `To Do` to `In Progress` when work starts, and to `Done` upon verification.
+5. **Request Review**: Move node to `Review` and invoke `python -m src.notify` when human feedback or sign-off is needed.

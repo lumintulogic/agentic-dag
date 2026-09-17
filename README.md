@@ -12,7 +12,7 @@ This repository provides a lightweight framework for agentic workflows that can:
 To add this repository to your AI coding agent (AGY, Claude Code, Codex, or any skill-supporting agent) as a skill, simply copy and paste the following prompt into your agent:
 
 ```text
-Add the repository https://github.com/lumintulogic/agentic-dag as a skill to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability.
+Add the repository https://github.com/lumintulogic/agentic-dag as a skill scoped strictly to the current workspace where a harness is run to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability.
 ```
 
 ## Project Layout
