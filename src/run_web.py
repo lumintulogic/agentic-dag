@@ -30,7 +30,7 @@ def find_listening_socket(start_port: int, attempts: int = PORT_ATTEMPTS):
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
-            server_socket.bind(("0.0.0.0", port))
+            server_socket.bind(("127.0.0.1", port))
             server_socket.listen()
             return server_socket, port
         except OSError as error:
@@ -51,7 +51,9 @@ def main():
         print(f"Port {requested} is in use; starting on port {port} instead.")
     print(f"DAG control panel: http://localhost:{port}")
 
-    config = uvicorn.Config(app, host="0.0.0.0", port=port)
+    # This panel can control the Telegram bot and must remain local unless an
+    # authenticated reverse proxy is deliberately placed in front of it.
+    config = uvicorn.Config(app, host="127.0.0.1", port=port)
     server = uvicorn.Server(config)
     try:
         server.run(sockets=[server_socket])

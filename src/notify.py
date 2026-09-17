@@ -79,7 +79,12 @@ async def main() -> None:
     parser = argparse.ArgumentParser(description="Send a Telegram review notification")
     parser.add_argument("node_id", help="DAG node ID to request review for")
     parser.add_argument("message", nargs="+", help="Review message text")
-    parser.add_argument("--wait", action="store_true", help="Block until the human replies (requires the web server to be running)")
+    parser.add_argument(
+        "--wait",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Block until the human replies (default; requires the web server and bot to be running). Use --no-wait to send only.",
+    )
     parser.add_argument("--timeout", type=float, default=300, help="Seconds to wait for a reply (default: 300)")
     parser.add_argument("--project-title", help="Project title to mention in notification")
     args = parser.parse_args()

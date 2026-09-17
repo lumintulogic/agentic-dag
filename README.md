@@ -12,7 +12,7 @@ This repository provides a lightweight framework for agentic workflows that can:
 To add this repository to your AI coding agent (AGY, Claude Code, Codex, or any skill-supporting agent) as a skill, simply copy and paste the following prompt into your agent:
 
 ```text
-Add the repository https://github.com/lumintulogic/agentic-dag as a skill scoped strictly to the current workspace where a harness is run to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability.
+Add the repository https://github.com/lumintulogic/agentic-dag as a skill scoped strictly to the current workspace where a harness is run to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability. Before taking task actions, read `SKILL.md` completely, especially **Waiting for the Human Reply (Push to Harness)**. Use its reply-push workflow by default whenever sending a review notification.
 ```
 
 ## Project Layout
@@ -96,7 +96,7 @@ Start it from the repository root:
 python -m src.run_web
 ```
 
-The server prefers port `8080` and automatically tries the next available port if it is occupied; it prints the selected address at startup. Set `WEB_PORT` to choose the first port to try. Open the printed `http://localhost:<port>` address. When using a forwarded development-server URL, open its forwarded `/proxy/<port>/` path instead. The UI uses paths relative to that application base, so its API calls work both at the domain root and behind a path-based proxy.
+The server binds only to `127.0.0.1`, prefers port `8080`, and automatically tries the next available port if it is occupied; it prints the selected address at startup. Set `WEB_PORT` to choose the first port to try. Open the printed `http://localhost:<port>` address. When using a forwarded development-server URL, open its forwarded `/proxy/<port>/` path instead. The UI uses paths relative to that application base, so its API calls work both at the domain root and behind a path-based proxy.
 
 ### What it provides
 
@@ -198,11 +198,15 @@ The Settings tab applies a state-file path to the running server and saves it lo
 
 ## Human-Review Notifications
 
-After at least one chat has sent `/register`, send a notification from the repository root:
+After at least one chat has sent `/register`, start `python -m src.run_web` and its Telegram bot. Then send a notification from the repository root:
 
 ```bash
 python -m src.notify <node_id> "Action needed: review the current DAG task."
 ```
+
+Reply-push is the default: the command blocks until the reviewer replies and
+prints the response as JSON. Use `--no-wait` only for a deliberately send-only
+notification.
 
 If `PROJECT_TITLE` is set in the environment or passed via `--project-title <title>`, the Telegram notification message explicitly includes `Project: <title>` at the top.
 
@@ -210,14 +214,14 @@ If `PROJECT_TITLE` is set in the environment or passed via `--project-title <tit
 
 Harnesses can block until the human responds rather than polling `dag_state.json`:
 
-**CLI (with `--wait`):**
+**CLI (default):**
 ```bash
-python -m src.notify <node_id> "Review needed" --wait --timeout 300 --project-title "My Project"
+python -m src.notify <node_id> "Review needed" --timeout 300 --project-title "My Project"
 ```
 This sends the notification and blocks until a reply arrives, printing the review result JSON to `stdout`.
 
 **HTTP API:**
-- `POST /api/telegram/notify` with `{"node_id": "...", "message": "...", "project_title": "My Project", "wait": true, "timeout": 300}`
+- `POST /api/telegram/notify` with `{"node_id": "...", "message": "...", "project_title": "My Project", "timeout": 300}`; set `"wait": false` only for send-only delivery.
 - `GET /api/telegram/reviews/{node_id}/wait?timeout=300`
 
 The notification command sends a task-linked message to every locally registered chat and records each sent message ID locally. Reply directly to that notification: replies beginning with `approved`, `yes`, `proceed`, or `continue` move the node to `In Progress`; replies beginning with `rejected`, `no`, `changes requested`, or `revise` move it to `To Do`; every other reply is recorded while the node stays in `Review`. The command fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.

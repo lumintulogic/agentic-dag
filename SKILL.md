@@ -85,13 +85,20 @@ In Telegram, the human reviewer sends `/register` to the bot to record the chat 
 
 ### Triggering Human Review
 
-When an agent reaches a checkpoint requiring human approval, run:
+When an agent reaches a checkpoint requiring human approval, use reply-push by
+default. Start the local web server and its Telegram bot first, then run:
 
 ```bash
+python -m src.run_web
+# In another shell: POST /api/telegram/start
 python -m src.notify <node_id> "<message detailing what needs review>"
 ```
 
 If `PROJECT_TITLE` is set in `.env` or passed via `--project-title "<title>"`, the notification message includes `Project: <title>` at the top.
+
+The CLI waits for the direct Telegram reply by default and prints its JSON
+result to stdout. Use `--no-wait` only when the caller explicitly needs a
+send-only notification.
 
 ### Waiting for the Human Reply (Push to Harness)
 
@@ -100,7 +107,7 @@ Instead of polling `dag_state.json`, harnesses can block until the human respond
 **CLI (recommended for agents):**
 
 ```bash
-python -m src.notify <node_id> "<message>" --wait --timeout 300
+python -m src.notify <node_id> "<message>" --timeout 300
 ```
 This sends the notification *and* blocks until the reply arrives, then prints the result as JSON to stdout:
 
@@ -122,7 +129,7 @@ curl -X POST http://localhost:8080/api/telegram/notify \
 curl "http://localhost:8080/api/telegram/reviews/task-1/wait?timeout=300"
 ```
 
-> **Note:** The `--wait` flag and wait endpoints require the web server (`python -m src.run_web`) to be running with the bot started.
+> **Note:** Reply-push is the default. It and the wait endpoints require the web server (`python -m src.run_web`) to be running with the bot started.
 
 ### Automatic Decision Routing
 
@@ -150,7 +157,7 @@ python -m src.run_web
 - `GET /api/dag` - Retrieve nodes and dependency edges.
 - `POST /api/dag/nodes` - Create a node: `{"id": "...", "label": "..."}`.
 - `POST /api/dag/edges` - Create a dependency: `{"source": "...", "target": "..."}`.
-- `POST /api/telegram/notify` - Trigger a human review notification. Add `"wait": true` to block until the reply arrives.
+- `POST /api/telegram/notify` - Trigger a human review notification and wait for the reply by default. Set `"wait": false` only for send-only delivery.
 - `GET /api/telegram/reviews/{node_id}/wait?timeout=300` - Block until a review response arrives for the given node.
 
 ---
@@ -163,4 +170,4 @@ When assigned a workspace task:
 2. **Load/Inspect DAG**: Check `dag_state.json` or query `GET /api/dag` to understand existing tasks and context.
 3. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed.
 4. **Update Status**: Move nodes from `To Do` to `In Progress` when work starts, and to `Done` upon verification.
-5. **Request Review**: Move node to `Review` and invoke `python -m src.notify` when human feedback or sign-off is needed.
+5. **Request Review**: Move node to `Review`, start the local reply-push service and bot, then invoke `python -m src.notify` when human feedback or sign-off is needed. It waits for the direct Telegram reply by default.

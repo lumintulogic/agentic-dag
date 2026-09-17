@@ -118,7 +118,7 @@ class EdgeModel(BaseModel):
 class NotifyModel(BaseModel):
     node_id: str
     message: str
-    wait: bool = False
+    wait: bool = True
     timeout: float = 300
     project_title: str | None = None
 
@@ -288,8 +288,16 @@ def unregister_chat(chat_id: int):
 
 @app.post("/api/telegram/notify")
 async def notify_all(model: NotifyModel):
+    if model.wait and not bot_manager.is_running:
+        raise HTTPException(
+            status_code=409,
+            detail="Reply-push requires the Telegram bot to be running. Start it before sending, or set wait to false.",
+        )
     try:
-        cmd = [sys.executable, "-m", "src.notify", model.node_id, model.message]
+        # The API owns the wait below. The CLI defaults to waiting too, so keep
+        # this child sender non-blocking to avoid two waiters consuming the same
+        # pushed response.
+        cmd = [sys.executable, "-m", "src.notify", model.node_id, model.message, "--no-wait"]
         if model.project_title:
             cmd.extend(["--project-title", model.project_title])
         subprocess.run(cmd, cwd="/config/workspace/dag", check=True)

@@ -1,9 +1,11 @@
 import unittest
 from unittest.mock import AsyncMock, patch
-import os
 import asyncio
+import os
+import sys
 
-from src.notify import send_notification
+from src.notify import main as notify_main, send_notification
+from src.run_web import find_listening_socket
 from src.web import NotifyModel
 
 
@@ -82,6 +84,31 @@ class TestNotify(unittest.TestCase):
     def test_web_notify_model(self):
         model = NotifyModel(node_id="node-123", message="msg", project_title="Web Title")
         self.assertEqual(model.project_title, "Web Title")
+        self.assertTrue(model.wait)
+
+    @patch("src.run_web.socket.socket")
+    def test_web_runner_binds_only_to_loopback(self, mock_socket):
+        socket_instance = mock_socket.return_value
+        server_socket, port = find_listening_socket(18180, attempts=1)
+        self.assertIs(server_socket, socket_instance)
+        self.assertEqual(port, 18180)
+        socket_instance.bind.assert_called_once_with(("127.0.0.1", 18180))
+
+    @patch("src.notify.wait_for_review", return_value={"status": "In Progress"})
+    @patch("src.notify.send_notification", new_callable=AsyncMock)
+    @patch.object(sys, "argv", ["notify", "task-1", "Please review"])
+    def test_cli_waits_by_default(self, mock_send, mock_wait):
+        asyncio.run(notify_main())
+        mock_send.assert_awaited_once_with("task-1", "Please review", project_title=None)
+        mock_wait.assert_called_once_with("task-1", timeout=300)
+
+    @patch("src.notify.wait_for_review")
+    @patch("src.notify.send_notification", new_callable=AsyncMock)
+    @patch.object(sys, "argv", ["notify", "task-1", "Please review", "--no-wait"])
+    def test_cli_can_opt_out_of_waiting(self, mock_send, mock_wait):
+        asyncio.run(notify_main())
+        mock_send.assert_awaited_once_with("task-1", "Please review", project_title=None)
+        mock_wait.assert_not_called()
 
 
 if __name__ == "__main__":
