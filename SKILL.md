@@ -1,8 +1,6 @@
 ---
 name: agentic-dag
-description: >-
-  Tracks workspace progress using a DAG task dependency graph, provides persistent memory across sessions,
-  sends Telegram notifications for human-in-the-loop review, and serves a web UI for human observability.
+description: Track workspace tasks as a DAG with persistent state, Telegram review notifications, and a web observability UI.
 ---
 
 # Agentic DAG & Workspace Progress Tracker Skill
@@ -22,6 +20,7 @@ pip install -r requirements.txt
 ```
 
 ### Environment Configuration (`.env`)
+
 Create or check `.env` at repository root:
 
 ```dotenv
@@ -41,7 +40,9 @@ WEB_PORT=8080
 The task DAG is saved automatically to `DAG_STATE_FILE` (`dag_state.json` by default). Tasks are nodes, and dependencies are directed edges (`from_id -> to_id`).
 
 ### Node Status Conventions
+
 Node labels start with status prefixes:
+
 - `Backlog — <title>` (Gray)
 - `To Do — <title>` (Amber)
 - `In Progress — <title>` (Blue)
@@ -50,6 +51,7 @@ Node labels start with status prefixes:
 - `Archived — <title>` (Dark Gray)
 
 ### Python API
+
 ```python
 from src.dag import Dag
 
@@ -69,16 +71,20 @@ dag.add_edge("task-1", "task-2")
 ## 3. Human-in-the-Loop Telegram Notifications
 
 ### Running the Bot
+
 Start the Telegram bot handler:
+
 ```bash
 python -m src.main
 ```
 Or start it programmatically / via the Web UI API at `POST /api/telegram/start`.
 
 ### Registering Chat ID
+
 In Telegram, the human reviewer sends `/register` to the bot to record the chat ID locally.
 
 ### Triggering Human Review
+
 When an agent reaches a checkpoint requiring human approval, run:
 
 ```bash
@@ -92,15 +98,18 @@ If `PROJECT_TITLE` is set in `.env` or passed via `--project-title "<title>"`, t
 Instead of polling `dag_state.json`, harnesses can block until the human responds:
 
 **CLI (recommended for agents):**
+
 ```bash
 python -m src.notify <node_id> "<message>" --wait --timeout 300
 ```
 This sends the notification *and* blocks until the reply arrives, then prints the result as JSON to stdout:
+
 ```json
 {"node_id": "task-1", "status": "In Progress", "response": "approved, looks good", "chat_id": 123456}
 ```
 
 **HTTP — send + wait in one call:**
+
 ```bash
 curl -X POST http://localhost:8080/api/telegram/notify \
   -H 'Content-Type: application/json' \
@@ -108,6 +117,7 @@ curl -X POST http://localhost:8080/api/telegram/notify \
 ```
 
 **HTTP — standalone wait (if notification was sent separately):**
+
 ```bash
 curl "http://localhost:8080/api/telegram/reviews/task-1/wait?timeout=300"
 ```
@@ -115,7 +125,9 @@ curl "http://localhost:8080/api/telegram/reviews/task-1/wait?timeout=300"
 > **Note:** The `--wait` flag and wait endpoints require the web server (`python -m src.run_web`) to be running with the bot started.
 
 ### Automatic Decision Routing
+
 When human reviewers reply to the Telegram notification:
+
 - Replies beginning with `approved`, `yes`, `proceed`, or `continue` automatically set the node status to `In Progress — <title> — Approved: <notes>`.
 - Replies beginning with `rejected`, `no`, `changes requested`, or `revise` automatically set the node status to `To Do — <title> — Changes requested: <notes>`.
 
@@ -134,6 +146,7 @@ python -m src.run_web
 - **Graph Canvas**: `http://localhost:8080/graph` (Zoomable D3 graph for large DAG navigation).
 
 ### Key HTTP Endpoints
+
 - `GET /api/dag` - Retrieve nodes and dependency edges.
 - `POST /api/dag/nodes` - Create a node: `{"id": "...", "label": "..."}`.
 - `POST /api/dag/edges` - Create a dependency: `{"source": "...", "target": "..."}`.
@@ -145,6 +158,7 @@ python -m src.run_web
 ## 5. Agent Workflow Guidelines
 
 When assigned a workspace task:
+
 1. **Load/Inspect DAG**: Check `dag_state.json` or query `GET /api/dag` to understand existing tasks and context.
 2. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed.
 3. **Update Status**: Move nodes from `To Do` to `In Progress` when work starts, and to `Done` upon verification.
