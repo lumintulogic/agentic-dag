@@ -85,6 +85,33 @@ When an agent reaches a checkpoint requiring human approval, run:
 python -m src.notify <node_id> "<message detailing what needs review>"
 ```
 
+### Waiting for the Human Reply (Push to Harness)
+
+Instead of polling `dag_state.json`, harnesses can block until the human responds:
+
+**CLI (recommended for agents):**
+```bash
+python -m src.notify <node_id> "<message>" --wait --timeout 300
+```
+This sends the notification *and* blocks until the reply arrives, then prints the result as JSON to stdout:
+```json
+{"node_id": "task-1", "status": "In Progress", "response": "approved, looks good", "chat_id": 123456}
+```
+
+**HTTP — send + wait in one call:**
+```bash
+curl -X POST http://localhost:8080/api/telegram/notify \
+  -H 'Content-Type: application/json' \
+  -d '{"node_id": "task-1", "message": "Please review", "wait": true, "timeout": 300}'
+```
+
+**HTTP — standalone wait (if notification was sent separately):**
+```bash
+curl "http://localhost:8080/api/telegram/reviews/task-1/wait?timeout=300"
+```
+
+> **Note:** The `--wait` flag and wait endpoints require the web server (`python -m src.run_web`) to be running with the bot started.
+
 ### Automatic Decision Routing
 When human reviewers reply to the Telegram notification:
 - Replies beginning with `approved`, `yes`, `proceed`, or `continue` automatically set the node status to `In Progress — <title> — Approved: <notes>`.
@@ -108,7 +135,8 @@ python -m src.run_web
 - `GET /api/dag` - Retrieve nodes and dependency edges.
 - `POST /api/dag/nodes` - Create a node: `{"id": "...", "label": "..."}`.
 - `POST /api/dag/edges` - Create a dependency: `{"source": "...", "target": "..."}`.
-- `POST /api/telegram/notify` - Trigger a human review notification.
+- `POST /api/telegram/notify` - Trigger a human review notification. Add `"wait": true` to block until the reply arrives.
+- `GET /api/telegram/reviews/{node_id}/wait?timeout=300` - Block until a review response arrives for the given node.
 
 ---
 

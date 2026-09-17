@@ -13,6 +13,7 @@ import sys
 from .dag import Dag
 from .visualize import generate_mermaid
 from .notifications import _load_registry, _save_registry
+from .review_waiter import ReviewWaiter
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -27,11 +28,12 @@ def get_project_title() -> str:
     return os.getenv("PROJECT_TITLE", "DAG Project").strip() or "DAG Project"
 
 class TelegramBotManager:
-    def __init__(self):
+    def __init__(self, review_waiter: ReviewWaiter | None = None):
         self._thread = None
         self._app = None
         self._loop = None
         self._running = False
+        self._review_waiter = review_waiter
     
     @property
     def is_running(self):
@@ -65,6 +67,10 @@ class TelegramBotManager:
         app.add_handler(CommandHandler('export', export))
         app.add_handler(MessageHandler(filters.REPLY & filters.TEXT, review_reply))
         
+        # Inject the waiter so review_reply can push results to HTTP callers.
+        if self._review_waiter:
+            app.bot_data['review_waiter'] = self._review_waiter
+        
         self._app = app
         self._running = True
         
@@ -95,7 +101,8 @@ app.add_middleware(
 )
 
 dag = Dag()
-bot_manager = TelegramBotManager()
+review_waiter = ReviewWaiter()
+bot_manager = TelegramBotManager(review_waiter=review_waiter)
 
 class NodeModel(BaseModel):
     id: str
@@ -111,6 +118,8 @@ class EdgeModel(BaseModel):
 class NotifyModel(BaseModel):
     node_id: str
     message: str
+    wait: bool = False
+    timeout: float = 300
 
 class StateFileModel(BaseModel):
     path: str
@@ -277,12 +286,32 @@ def unregister_chat(chat_id: int):
     raise HTTPException(status_code=404, detail="Chat not found")
 
 @app.post("/api/telegram/notify")
-def notify_all(model: NotifyModel):
+async def notify_all(model: NotifyModel):
     try:
         subprocess.run([sys.executable, "-m", "src.notify", model.node_id, model.message], cwd="/config/workspace/dag", check=True)
-        return {"status": "ok"}
     except subprocess.CalledProcessError:
         raise HTTPException(status_code=500, detail="Failed to send notification")
+
+    if not model.wait:
+        return {"status": "ok"}
+
+    # Block until the human replies or the timeout elapses.
+    timeout = min(model.timeout, 600)
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, review_waiter.wait, model.node_id, timeout)
+    if result is None:
+        raise HTTPException(status_code=408, detail="Timeout waiting for review response")
+    return result
+
+@app.get("/api/telegram/reviews/{node_id}/wait")
+async def wait_for_review(node_id: str, timeout: float = 300):
+    """Block until a review response arrives for *node_id*, or *timeout* elapses."""
+    timeout = min(timeout, 600)
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(None, review_waiter.wait, node_id, timeout)
+    if result is None:
+        raise HTTPException(status_code=408, detail="Timeout waiting for review response")
+    return result
 
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(static_dir, exist_ok=True)

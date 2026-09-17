@@ -46,6 +46,15 @@ async def review_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(f'Could not record this review: {error}')
         return
     await message.reply_text(f'Recorded your response for {node_id}. Status is now {status}.')
+    # Push the result to any harness waiting on the HTTP wait endpoint.
+    waiter = context.bot_data.get('review_waiter')
+    if waiter:
+        waiter.notify(node_id, {
+            'node_id': node_id,
+            'status': status,
+            'response': message.text,
+            'chat_id': message.chat_id,
+        })
 
 
 async def add_node(update: Update, context: ContextTypes.DEFAULT_TYPE):

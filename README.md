@@ -164,7 +164,8 @@ The Settings tab applies a state-file path to the running server and saves it lo
 | `POST` | `/api/telegram/stop` | Stop the Telegram bot. |
 | `GET` | `/api/telegram/chats` | List registered chat IDs. |
 | `DELETE` | `/api/telegram/chats/{chat_id}` | Remove a registered chat. |
-| `POST` | `/api/telegram/notify` | Send a task-linked notification. |
+| `POST` | `/api/telegram/notify` | Send a task-linked notification. Optionally set `"wait": true` and `"timeout": 300` to block for reply. |
+| `GET` | `/api/telegram/reviews/{node_id}/wait` | Block until a review response arrives for `{node_id}` (`?timeout=300`). |
 | `GET` | `/visualize` | Render the current DAG as a label-lane Kanban board. |
 | `GET` | `/graph` | Open the full-screen D3 Graph Canvas. |
 
@@ -203,7 +204,21 @@ After at least one chat has sent `/register`, send a notification from the repos
 python -m src.notify <node_id> "Action needed: review the current DAG task."
 ```
 
-The command sends a task-linked message to every locally registered chat and records each sent message ID locally. Reply directly to that notification: replies beginning with `approved`, `yes`, `proceed`, or `continue` move the node to `In Progress`; replies beginning with `rejected`, `no`, `changes requested`, or `revise` move it to `To Do`; every other reply is recorded while the node stays in `Review`. The command fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.
+### Waiting for Human Reply (Push to Harness)
+
+Harnesses can block until the human responds rather than polling `dag_state.json`:
+
+**CLI (with `--wait`):**
+```bash
+python -m src.notify <node_id> "Review needed" --wait --timeout 300
+```
+This sends the notification and blocks until a reply arrives, printing the review result JSON to `stdout`.
+
+**HTTP API:**
+- `POST /api/telegram/notify` with `{"node_id": "...", "message": "...", "wait": true, "timeout": 300}`
+- `GET /api/telegram/reviews/{node_id}/wait?timeout=300`
+
+The notification command sends a task-linked message to every locally registered chat and records each sent message ID locally. Reply directly to that notification: replies beginning with `approved`, `yes`, `proceed`, or `continue` move the node to `In Progress`; replies beginning with `rejected`, `no`, `changes requested`, or `revise` move it to `To Do`; every other reply is recorded while the node stays in `Review`. The command fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.
 
 The sender emits flushed UTC diagnostics for `send_started`, Telegram acceptance, reply-mapping registration, and completion. They include the DAG node and Telegram message ID, but never a chat ID, bot token, or notification body. A failed send or mapping registration exits non-zero immediately after attempting the remaining registered recipients.
 
