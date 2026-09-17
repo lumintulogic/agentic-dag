@@ -120,6 +120,7 @@ class NotifyModel(BaseModel):
     message: str
     wait: bool = False
     timeout: float = 300
+    project_title: str | None = None
 
 class StateFileModel(BaseModel):
     path: str
@@ -288,7 +289,10 @@ def unregister_chat(chat_id: int):
 @app.post("/api/telegram/notify")
 async def notify_all(model: NotifyModel):
     try:
-        subprocess.run([sys.executable, "-m", "src.notify", model.node_id, model.message], cwd="/config/workspace/dag", check=True)
+        cmd = [sys.executable, "-m", "src.notify", model.node_id, model.message]
+        if model.project_title:
+            cmd.extend(["--project-title", model.project_title])
+        subprocess.run(cmd, cwd="/config/workspace/dag", check=True)
     except subprocess.CalledProcessError:
         raise HTTPException(status_code=500, detail="Failed to send notification")
 

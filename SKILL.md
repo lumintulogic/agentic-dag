@@ -85,6 +85,8 @@ When an agent reaches a checkpoint requiring human approval, run:
 python -m src.notify <node_id> "<message detailing what needs review>"
 ```
 
+If `PROJECT_TITLE` is set in `.env` or passed via `--project-title "<title>"`, the notification message includes `Project: <title>` at the top.
+
 ### Waiting for the Human Reply (Push to Harness)
 
 Instead of polling `dag_state.json`, harnesses can block until the human responds:
@@ -102,7 +104,7 @@ This sends the notification *and* blocks until the reply arrives, then prints th
 ```bash
 curl -X POST http://localhost:8080/api/telegram/notify \
   -H 'Content-Type: application/json' \
-  -d '{"node_id": "task-1", "message": "Please review", "wait": true, "timeout": 300}'
+  -d '{"node_id": "task-1", "message": "Please review", "project_title": "Workspace Progress", "wait": true, "timeout": 300}'
 ```
 
 **HTTP — standalone wait (if notification was sent separately):**

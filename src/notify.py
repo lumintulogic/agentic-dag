@@ -22,7 +22,7 @@ def report(event: str, node_id: str, **details: object) -> None:
     print(f"{timestamp} telegram_review_notification event={event} node_id={node_id}{(' ' + suffix) if suffix else ''}", flush=True)
 
 
-async def send_notification(node_id: str, message: str) -> None:
+async def send_notification(node_id: str, message: str, project_title: str | None = None) -> None:
     """Send the review notification to all registered chats."""
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -30,7 +30,11 @@ async def send_notification(node_id: str, message: str) -> None:
     chat_ids = notification_chat_ids()
     if not chat_ids:
         raise RuntimeError("No notification chat is registered; send /register to the bot first")
-    notification = f"Review needed for {node_id}\n\n{message}\n\nReply directly to this message with approved, rejected, or your review notes."
+    title = (project_title or os.getenv("PROJECT_TITLE", "")).strip()
+    if title:
+        notification = f"Project: {title}\nReview needed for {node_id}\n\n{message}\n\nReply directly to this message with approved, rejected, or your review notes."
+    else:
+        notification = f"Review needed for {node_id}\n\n{message}\n\nReply directly to this message with approved, rejected, or your review notes."
     report("send_started", node_id, recipients=len(chat_ids))
     failures = 0
     async with Bot(token=token) as bot:
@@ -77,10 +81,11 @@ async def main() -> None:
     parser.add_argument("message", nargs="+", help="Review message text")
     parser.add_argument("--wait", action="store_true", help="Block until the human replies (requires the web server to be running)")
     parser.add_argument("--timeout", type=float, default=300, help="Seconds to wait for a reply (default: 300)")
+    parser.add_argument("--project-title", help="Project title to mention in notification")
     args = parser.parse_args()
 
     message = " ".join(args.message).strip()
-    await send_notification(args.node_id, message)
+    await send_notification(args.node_id, message, project_title=args.project_title)
 
     if args.wait:
         report("waiting_for_reply", args.node_id, timeout=args.timeout)

@@ -204,18 +204,20 @@ After at least one chat has sent `/register`, send a notification from the repos
 python -m src.notify <node_id> "Action needed: review the current DAG task."
 ```
 
+If `PROJECT_TITLE` is set in the environment or passed via `--project-title <title>`, the Telegram notification message explicitly includes `Project: <title>` at the top.
+
 ### Waiting for Human Reply (Push to Harness)
 
 Harnesses can block until the human responds rather than polling `dag_state.json`:
 
 **CLI (with `--wait`):**
 ```bash
-python -m src.notify <node_id> "Review needed" --wait --timeout 300
+python -m src.notify <node_id> "Review needed" --wait --timeout 300 --project-title "My Project"
 ```
 This sends the notification and blocks until a reply arrives, printing the review result JSON to `stdout`.
 
 **HTTP API:**
-- `POST /api/telegram/notify` with `{"node_id": "...", "message": "...", "wait": true, "timeout": 300}`
+- `POST /api/telegram/notify` with `{"node_id": "...", "message": "...", "project_title": "My Project", "wait": true, "timeout": 300}`
 - `GET /api/telegram/reviews/{node_id}/wait?timeout=300`
 
 The notification command sends a task-linked message to every locally registered chat and records each sent message ID locally. Reply directly to that notification: replies beginning with `approved`, `yes`, `proceed`, or `continue` move the node to `In Progress`; replies beginning with `rejected`, `no`, `changes requested`, or `revise` move it to `To Do`; every other reply is recorded while the node stays in `Review`. The command fails safely if no chat has registered. The chat registry is local state and should be excluded from version control.
