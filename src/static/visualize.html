@@ -411,6 +411,7 @@
         let totalConnectionCount = 0;
         let connectionsVisible = true;
         let drawFrame = null;
+        let loadRequestId = 0;
 
         function appBasePath() {
             return window.location.pathname.replace(/\/visualize(?:\.html)?\/?$/, '/');
@@ -484,6 +485,11 @@
         }
 
         function renderBoard(data) {
+            // A pending frame could otherwise draw against this newly replaced board
+            // with geometry captured from the previous one.
+            if (drawFrame !== null) cancelAnimationFrame(drawFrame);
+            drawFrame = null;
+            connectionLines.replaceChildren();
             const projectTitle = textValue(data.project_title) || 'DAG Project';
             document.getElementById('project-title').textContent = projectTitle;
             document.title = `${projectTitle} · Kanban`;
@@ -626,11 +632,13 @@
         }
 
         function syncOffscreenDocks(parkingMap) {
+            let changed = false;
             for (const [cardId, proxyInfo] of dockElements.entries()) {
                 const targetPosition = parkingMap.get(cardId);
                 if (proxyInfo.position !== targetPosition) {
                     proxyInfo.proxy.remove();
                     dockElements.delete(cardId);
+                    changed = true;
                 }
             }
 
@@ -660,9 +668,10 @@
                     dock.append(proxy);
                     dockElements.set(cardId, { proxy, position });
                     activeProxies.set(cardId, proxy);
+                    changed = true;
                 }
             }
-            return activeProxies;
+            return { activeProxies, changed };
         }
 
         function connectionPath(source, target) {
@@ -726,7 +735,14 @@
                     }
                 }
             }
-            const activeProxies = syncOffscreenDocks(parkingMap);
+            const { activeProxies, changed: docksChanged } = syncOffscreenDocks(parkingMap);
+            // Adding or removing proxies changes the cards' available height. Draw on
+            // the following frame, after the browser has applied that layout, so paths
+            // never use geometry from before a board refresh or dock update.
+            if (docksChanged) {
+                scheduleConnections();
+                return;
+            }
             for (const [cardId, proxy] of activeProxies.entries()) {
                 const state = endpointStates.get(cardId);
                 if (state) {
@@ -788,13 +804,17 @@
         }
 
         async function loadBoard() {
+            const requestId = ++loadRequestId;
             status.classList.remove('error');
             status.textContent = 'Loading board…';
             try {
                 const response = await fetch(apiPath('dag'), { cache: 'no-store' });
                 if (!response.ok) throw new Error(`The server returned ${response.status}`);
-                renderBoard(await response.json());
+                const data = await response.json();
+                if (requestId !== loadRequestId) return;
+                renderBoard(data);
             } catch (error) {
+                if (requestId !== loadRequestId) return;
                 status.classList.add('error');
                 status.textContent = `Could not load the board: ${error.message}`;
             }
