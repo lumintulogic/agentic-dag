@@ -490,6 +490,11 @@
             if (drawFrame !== null) cancelAnimationFrame(drawFrame);
             drawFrame = null;
             connectionLines.replaceChildren();
+            // Refresh replaces every lane (and therefore every dock).  Proxies from
+            // the old lanes are detached after that replacement; retaining them in
+            // dockElements would make the next draw measure a zero-sized element at
+            // the document origin and route its dependency line to the top-left.
+            clearOffscreenDocks();
             const projectTitle = textValue(data.project_title) || 'DAG Project';
             document.getElementById('project-title').textContent = projectTitle;
             document.title = `${projectTitle} · Kanban`;
