@@ -1,8 +1,11 @@
 import unittest
 from unittest.mock import AsyncMock, patch
 import asyncio
+import importlib
 import os
 import sys
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 from src.notify import main as notify_main, send_notification
 from src.run_web import find_listening_socket
@@ -121,6 +124,28 @@ class TestNotify(unittest.TestCase):
         from pathlib import Path
         expected_root = str(Path(__file__).resolve().parents[1])
         self.assertEqual(PROJECT_ROOT, expected_root)
+
+    def test_review_reply_uses_host_scoped_dag(self):
+        """A web-hosted bot must update the DAG supplied by its host app."""
+        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "fake_token"}):
+            sys.modules.pop("src.bot", None)
+            bot = importlib.import_module("src.bot")
+
+        message = AsyncMock()
+        message.text = "approved"
+        message.chat_id = 12345
+        message.reply_to_message = SimpleNamespace(message_id=99)
+        update = SimpleNamespace(effective_message=message)
+        host_dag = MagicMock()
+        host_dag.record_review_response.return_value = "In Progress"
+        context = SimpleNamespace(bot_data={"dag": host_dag})
+
+        with patch.object(bot, "consume_pending_review", return_value={"node_id": "host-node"}):
+            asyncio.run(bot.review_reply(update, context))
+
+        host_dag.load.assert_called_once_with()
+        host_dag.record_review_response.assert_called_once_with("host-node", "approved", 12345)
+        message.reply_text.assert_awaited_once_with("Recorded your response for host-node. Status is now In Progress.")
 
 
 if __name__ == "__main__":

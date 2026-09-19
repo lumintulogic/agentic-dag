@@ -70,6 +70,7 @@ class TelegramBotManager:
         # Inject the waiter so review_reply can push results to HTTP callers.
         if self._review_waiter:
             app.bot_data['review_waiter'] = self._review_waiter
+        app.bot_data['dag'] = dag
         
         self._app = app
         self._running = True

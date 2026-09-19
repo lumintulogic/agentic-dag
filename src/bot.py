@@ -40,8 +40,12 @@ async def review_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if review is None:
         return
     node_id = review['node_id']
+    # A web-hosted bot must update the same DAG instance that created the
+    # review node.  Standalone use retains the module-level DAG as a fallback.
+    review_dag = context.bot_data.get('dag', dag)
+    review_dag.load()
     try:
-        status = dag.record_review_response(node_id, message.text, message.chat_id)
+        status = review_dag.record_review_response(node_id, message.text, message.chat_id)
     except ValueError as error:
         await message.reply_text(f'Could not record this review: {error}')
         return
