@@ -9,10 +9,10 @@ This repository provides a lightweight framework for agentic workflows that can:
 
 ## Registering as an Agent Skill
 
-To add this repository to your AI coding agent (AGY, Claude Code, Codex, or any skill-supporting agent) as a skill, simply copy and paste the following prompt into your agent:
+To add this repository to an AI coding agent as a skill, simply copy and paste the following prompt into your agent:
 
 ```text
-Install the repository https://github.com/lumintulogic/agentic-dag as one skill directory scoped strictly to the current workspace where a harness is run. Use the harness's native repository-scoped skill location; for Codex, install it at `<workspace>/.agents/skills/agentic-dag`. Treat the installed directory's root `SKILL.md` as the only canonical manifest. Do not install or copy compatibility alias directories such as `.agents`, `.claude`, `.codex`, or `skills` from the source repository. Use the skill to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability. Before taking task actions, read the root `SKILL.md` completely, especially **Waiting for the Human Reply (Push to Harness)**. Use its reply-push workflow by default whenever sending a review notification.
+Install the repository https://github.com/lumintulogic/agentic-dag as one skill directory scoped strictly to the current workspace where a harness is run. The harness should acquire its own native repository-scoped skill discovery location using the most efficient method. Treat the installed directory's root `SKILL.md` as the only canonical manifest. Use the skill to track workspace progress using a DAG task graph, maintain persistent memory across sessions, send Telegram notifications for human-in-the-loop review, and provide a web UI for human observability. Before taking task actions, read the root `SKILL.md` completely, especially **Waiting for the Human Reply (Push to Harness)**. Use its reply-push workflow by default whenever sending a review notification.
 ```
 
 ## Project Layout
