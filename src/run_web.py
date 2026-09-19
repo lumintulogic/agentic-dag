@@ -57,6 +57,8 @@ def main():
     server = uvicorn.Server(config)
     try:
         server.run(sockets=[server_socket])
+    except KeyboardInterrupt:
+        pass
     finally:
         server_socket.close()
 

@@ -143,11 +143,13 @@
             position: relative;
             z-index: 5;
             display: flex;
-            flex: 0 0 34px;
+            flex: 0 0 auto;
             min-width: 0;
-            align-items: center;
+            width: 100%;
+            align-items: flex-start;
             gap: .35rem;
-            height: 34px;
+            min-height: 34px;
+            max-height: 92px;
             padding: .25rem .35rem;
             overflow: hidden;
             border: 1px dashed #444b6d;
@@ -158,23 +160,36 @@
         .offscreen-dock.bottom { margin-top: .55rem; }
         .dock-direction {
             flex: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 24px;
             color: var(--muted);
             font-size: .72rem;
             line-height: 1;
         }
         .dock-items {
             display: flex;
+            flex-wrap: wrap;
             min-width: 0;
             flex: 1;
             gap: .3rem;
-            overflow-x: auto;
-            overflow-y: hidden;
-            scrollbar-width: none;
+            max-height: 84px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #555d84 transparent;
         }
-        .dock-items::-webkit-scrollbar { display: none; }
+        .dock-items::-webkit-scrollbar {
+            width: 4px;
+        }
+        .dock-items::-webkit-scrollbar-thumb {
+            background: #555d84;
+            border-radius: 2px;
+        }
         .offscreen-card {
             flex: 0 0 auto;
-            max-width: 11rem;
+            max-width: 100%;
             height: 24px;
             padding: .18rem .45rem;
             overflow: hidden;
@@ -505,9 +520,11 @@
                 header.append(createElement('span', 'lane-count', String(laneCards.length)));
                 const topDock = createElement('div', 'offscreen-dock top');
                 topDock.setAttribute('aria-label', `Cards above the visible ${laneName} lane area`);
+                const topDockItems = createElement('div', 'dock-items');
+                topDockItems.addEventListener('scroll', scheduleConnections, { passive: true });
                 topDock.append(
                     createElement('span', 'dock-direction', '↑'),
-                    createElement('div', 'dock-items')
+                    topDockItems
                 );
                 const cardList = createElement('div', 'lane-cards');
                 cardList.addEventListener('scroll', scheduleConnections, { passive: true });
@@ -541,9 +558,11 @@
                 }
                 const bottomDock = createElement('div', 'offscreen-dock bottom');
                 bottomDock.setAttribute('aria-label', `Cards below the visible ${laneName} lane area`);
+                const bottomDockItems = createElement('div', 'dock-items');
+                bottomDockItems.addEventListener('scroll', scheduleConnections, { passive: true });
                 bottomDock.append(
                     createElement('span', 'dock-direction', '↓'),
-                    createElement('div', 'dock-items')
+                    bottomDockItems
                 );
                 lane.append(header, topDock, cardList, bottomDock);
                 fragment.append(lane);
@@ -582,34 +601,68 @@
             };
         }
 
+        function proxyGeometry(proxy, boardRect) {
+            const rect = proxy.getBoundingClientRect();
+            const dockItems = proxy.closest('.dock-items');
+            if (!dockItems) return elementGeometry(proxy, boardRect);
+
+            const dockRect = dockItems.getBoundingClientRect();
+            const visibleTop = Math.max(rect.top, dockRect.top);
+            const visibleBottom = Math.min(rect.bottom, dockRect.bottom);
+            const geometry = elementGeometry(proxy, boardRect);
+
+            if (visibleBottom > visibleTop) {
+                geometry.centerY = (visibleTop + visibleBottom) / 2 - boardRect.top;
+            } else {
+                const clampedY = rect.bottom <= dockRect.top ? dockRect.top + 4 : dockRect.bottom - 4;
+                geometry.centerY = clampedY - boardRect.top;
+            }
+            return geometry;
+        }
+
         function clearOffscreenDocks() {
             board.querySelectorAll('.dock-items').forEach(items => items.replaceChildren());
             dockElements.clear();
         }
 
-        function parkOffscreenCard(cardId, position) {
-            if (dockElements.has(cardId)) return dockElements.get(cardId);
-            const cardElement = cardElements.get(cardId);
-            const card = cardDataById.get(cardId);
-            const presentation = cardPresentations.get(cardId);
-            if (!cardElement || !card || !presentation) return null;
-            const lane = cardElement.closest('.lane');
-            const dock = lane.querySelector(`.offscreen-dock.${position} .dock-items`);
-            if (!dock) return null;
+        function syncOffscreenDocks(parkingMap) {
+            for (const [cardId, proxyInfo] of dockElements.entries()) {
+                const targetPosition = parkingMap.get(cardId);
+                if (proxyInfo.position !== targetPosition) {
+                    proxyInfo.proxy.remove();
+                    dockElements.delete(cardId);
+                }
+            }
 
-            const proxy = createElement('button', 'offscreen-card', presentation.title);
-            proxy.type = 'button';
-            proxy.dataset.cardId = cardId;
-            proxy.title = `${presentation.title} (${cardId})`;
-            proxy.setAttribute('aria-label', `${presentation.title}, card ${position === 'top' ? 'above' : 'below'} the visible lane`);
-            proxy.addEventListener('mouseenter', () => highlightConnections(cardId));
-            proxy.addEventListener('mouseleave', clearConnectionHighlight);
-            proxy.addEventListener('focus', () => highlightConnections(cardId));
-            proxy.addEventListener('blur', clearConnectionHighlight);
-            proxy.addEventListener('click', () => showCardDetails(card, presentation));
-            dock.append(proxy);
-            dockElements.set(cardId, proxy);
-            return proxy;
+            const activeProxies = new Map();
+            for (const [cardId, position] of parkingMap.entries()) {
+                if (dockElements.has(cardId)) {
+                    activeProxies.set(cardId, dockElements.get(cardId).proxy);
+                } else {
+                    const cardElement = cardElements.get(cardId);
+                    const card = cardDataById.get(cardId);
+                    const presentation = cardPresentations.get(cardId);
+                    if (!cardElement || !card || !presentation) continue;
+                    const lane = cardElement.closest('.lane');
+                    const dock = lane.querySelector(`.offscreen-dock.${position} .dock-items`);
+                    if (!dock) continue;
+
+                    const proxy = createElement('button', 'offscreen-card', presentation.title);
+                    proxy.type = 'button';
+                    proxy.dataset.cardId = cardId;
+                    proxy.title = `${presentation.title} (${cardId})`;
+                    proxy.setAttribute('aria-label', `${presentation.title}, card ${position === 'top' ? 'above' : 'below'} the visible lane`);
+                    proxy.addEventListener('mouseenter', () => highlightConnections(cardId));
+                    proxy.addEventListener('mouseleave', clearConnectionHighlight);
+                    proxy.addEventListener('focus', () => highlightConnections(cardId));
+                    proxy.addEventListener('blur', clearConnectionHighlight);
+                    proxy.addEventListener('click', () => showCardDetails(card, presentation));
+                    dock.append(proxy);
+                    dockElements.set(cardId, { proxy, position });
+                    activeProxies.set(cardId, proxy);
+                }
+            }
+            return activeProxies;
         }
 
         function connectionPath(source, target) {
@@ -639,7 +692,6 @@
             const boardRect = board.getBoundingClientRect();
             connectionCount = 0;
             totalConnectionCount = 0;
-            clearOffscreenDocks();
             const relationships = [];
             const endpointStates = new Map();
 
@@ -662,21 +714,25 @@
                 }
             }
 
-            const parkingIds = new Set();
+            const parkingMap = new Map();
             for (const { sourceId, targetId } of relationships) {
                 const sourceVisible = Boolean(endpointStates.get(sourceId)?.geometry);
                 const targetVisible = Boolean(endpointStates.get(targetId)?.geometry);
                 if (sourceVisible !== targetVisible) {
-                    parkingIds.add(sourceVisible ? targetId : sourceId);
+                    const cardId = sourceVisible ? targetId : sourceId;
+                    const state = endpointStates.get(cardId);
+                    if (state?.position) {
+                        parkingMap.set(cardId, state.position);
+                    }
                 }
             }
-            for (const cardId of parkingIds) {
+            const activeProxies = syncOffscreenDocks(parkingMap);
+            for (const [cardId, proxy] of activeProxies.entries()) {
                 const state = endpointStates.get(cardId);
-                const proxy = parkOffscreenCard(cardId, state.position);
-                if (proxy) state.proxy = proxy;
-            }
-            for (const state of endpointStates.values()) {
-                if (state.proxy) state.geometry = elementGeometry(state.proxy, boardRect);
+                if (state) {
+                    state.proxy = proxy;
+                    state.geometry = proxyGeometry(proxy, boardRect);
+                }
             }
 
             for (const { sourceId, targetId } of relationships) {
