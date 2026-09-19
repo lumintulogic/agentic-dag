@@ -5,7 +5,7 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[2] / "dag" / "telegram_notification_chat_ids.json"
+DEFAULT_REGISTRY_PATH = Path(__file__).resolve().parents[1] / "telegram_notification_chat_ids.json"
 
 
 def registry_path() -> Path:

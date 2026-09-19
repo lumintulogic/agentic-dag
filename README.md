@@ -73,7 +73,7 @@ TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
 # Optional: defaults to ./dag_state.json beside this repository.
 DAG_STATE_FILE=/path/to/dag_state.json
 
-# Optional: defaults to a sibling workspace dag/telegram_notification_chat_ids.json path.
+# Optional: defaults to ./telegram_notification_chat_ids.json at the repository root.
 TELEGRAM_NOTIFICATION_REGISTRY=/path/to/telegram_notification_chat_ids.json
 
 # Optional: defaults beside DAG_STATE_FILE as dag_export.json.

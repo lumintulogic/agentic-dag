@@ -300,7 +300,7 @@ async def notify_all(model: NotifyModel):
         cmd = [sys.executable, "-m", "src.notify", model.node_id, model.message, "--no-wait"]
         if model.project_title:
             cmd.extend(["--project-title", model.project_title])
-        subprocess.run(cmd, cwd="/config/workspace/dag", check=True)
+        subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
     except subprocess.CalledProcessError:
         raise HTTPException(status_code=500, detail="Failed to send notification")
 

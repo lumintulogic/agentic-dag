@@ -110,6 +110,18 @@ class TestNotify(unittest.TestCase):
         mock_send.assert_awaited_once_with("task-1", "Please review", project_title=None)
         mock_wait.assert_not_called()
 
+    def test_default_registry_path(self):
+        from src.notifications import DEFAULT_REGISTRY_PATH
+        from pathlib import Path
+        expected_root = Path(__file__).resolve().parents[1]
+        self.assertEqual(DEFAULT_REGISTRY_PATH, expected_root / "telegram_notification_chat_ids.json")
+
+    def test_project_root_dynamic(self):
+        from src.web import PROJECT_ROOT
+        from pathlib import Path
+        expected_root = str(Path(__file__).resolve().parents[1])
+        self.assertEqual(PROJECT_ROOT, expected_root)
+
 
 if __name__ == "__main__":
     unittest.main()
