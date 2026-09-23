@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 import os
 import threading
 import asyncio
-import subprocess
-import sys
 
 from .dag import Dag
 from .visualize import generate_mermaid
@@ -295,15 +293,14 @@ async def notify_all(model: NotifyModel):
             detail="Reply-push requires the Telegram bot to be running. Start it before sending, or set wait to false.",
         )
     try:
-        # The API owns the wait below. The CLI defaults to waiting too, so keep
-        # this child sender non-blocking to avoid two waiters consuming the same
-        # pushed response.
-        cmd = [sys.executable, "-m", "src.notify", model.node_id, model.message, "--no-wait"]
-        if model.project_title:
-            cmd.extend(["--project-title", model.project_title])
-        subprocess.run(cmd, cwd=PROJECT_ROOT, check=True)
-    except subprocess.CalledProcessError:
-        raise HTTPException(status_code=500, detail="Failed to send notification")
+        # Call send_notification directly in-process so the outbound Telegram
+        # request runs in the same network context as the already-running bot,
+        # avoiding the stall that occurred when a subprocess lacked outbound
+        # network access and never received a Telegram message-ID acknowledgement.
+        from .notify import send_notification
+        await send_notification(model.node_id, model.message, project_title=model.project_title)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to send notification: {exc}")
 
     if not model.wait:
         return {"status": "ok"}
