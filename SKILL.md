@@ -66,6 +66,31 @@ dag.add_edge("task-1", "task-2")
 # Save and load occur automatically on mutations
 ```
 
+### Fast CLI for Task Execution & Checkpointing (`src.dag_cli`)
+
+Harnesses and autonomous agents can manage task lifecycle, checkpoints, and dependency queries directly via CLI:
+
+```bash
+# Get the next actionable / unblocked task
+python -m src.dag_cli next
+
+# Save a progress checkpoint (findings, artifacts, next immediate step)
+python -m src.dag_cli checkpoint <node_id> \
+  --status "In Progress" \
+  --findings "Diagnosed schema issue" \
+  --artifacts "schema.sql" \
+  --next "Run database migrations"
+
+# Complete a task and unlock downstream dependencies
+python -m src.dag_cli complete <node_id> --findings "Migrations executed successfully"
+
+# List active or all tasks with their blockers
+python -m src.dag_cli list --all
+
+# Add a task with dependencies
+python -m src.dag_cli add <node_id> "<title>" --depends-on <dep1,dep2>
+```
+
 ---
 
 ## 3. Human-in-the-Loop Telegram Notifications
@@ -162,12 +187,14 @@ python -m src.run_web
 
 ---
 
-## 5. Agent Workflow Guidelines
+## 5. Agent Workflow Guidelines & Compaction Routine
 
 When assigned a workspace task:
 
 1. **Workspace Scope**: Ensure all DAG operations and task tracking are strictly confined to the current workspace where the harness is run.
-2. **Load/Inspect DAG**: Check `dag_state.json` or query `GET /api/dag` to understand existing tasks and context.
-3. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed.
-4. **Update Status**: Move nodes from `To Do` to `In Progress` when work starts, and to `Done` upon verification.
-5. **Request Review**: Move node to `Review`, start the local reply-push service and bot, then invoke `python -m src.notify` when human feedback or sign-off is needed. It waits for the direct Telegram reply by default.
+2. **Load/Inspect DAG**: Run `python -m src.dag_cli next` or query `GET /api/dag` to immediately rehydrate active context and next actions.
+3. **Track New Sub-tasks**: Add new task nodes and dependency edges as requirements are decomposed (`python -m src.dag_cli add ...`).
+4. **Autonomous Checkpointing**: Record checkpoints after atomic progress (`python -m src.dag_cli checkpoint ...`) with findings, artifacts, and next immediate steps.
+5. **Context Compaction Flush**: Before context runs out or between long turns, flush all critical findings into the active node checkpoint.
+6. **Request Review**: Move node to `Review`, then invoke `python -m src.notify` when human feedback or sign-off is needed.
+7. **Complete & Unlock**: Verify tests and mark node `Done` via `python -m src.dag_cli complete <node_id>`.
