@@ -89,6 +89,9 @@
             pointer-events: none;
             z-index: 3;
         }
+        #connections[hidden] {
+            display: none;
+        }
         .dependency-line {
             fill: none;
             stroke: var(--line);
@@ -694,6 +697,21 @@
             return `M ${startX} ${source.centerY} C ${midpointX} ${source.centerY}, ${midpointX} ${target.centerY}, ${endX} ${target.centerY}`;
         }
 
+        function updateConnectionsVisibility() {
+            if (connectionsVisible) {
+                connections.removeAttribute('hidden');
+                connections.style.display = '';
+            } else {
+                connections.setAttribute('hidden', '');
+                connections.style.display = 'none';
+            }
+            const toggleButton = document.getElementById('toggle-connections');
+            if (toggleButton) {
+                toggleButton.setAttribute('aria-pressed', String(connectionsVisible));
+                toggleButton.textContent = connectionsVisible ? 'Hide Dependencies' : 'Show Dependencies';
+            }
+        }
+
         function drawConnections() {
             drawFrame = null;
             connectionLines.replaceChildren();
@@ -702,7 +720,7 @@
             connections.setAttribute('width', width);
             connections.setAttribute('height', height);
             connections.setAttribute('viewBox', `0 0 ${width} ${height}`);
-            connections.hidden = !connectionsVisible;
+            updateConnectionsVisibility();
             const boardRect = board.getBoundingClientRect();
             connectionCount = 0;
             totalConnectionCount = 0;
@@ -726,6 +744,12 @@
                         endpointStates.set(targetId, cardViewportState(target, boardRect));
                     }
                 }
+            }
+
+            if (!connectionsVisible) {
+                clearOffscreenDocks();
+                updateStatus();
+                return;
             }
 
             const parkingMap = new Map();
@@ -783,6 +807,7 @@
         }
 
         function highlightConnections(cardId) {
+            if (!connectionsVisible) return;
             connectionLines.querySelectorAll('.dependency-line').forEach(line => {
                 const connected = line.dataset.source === cardId || line.dataset.target === cardId;
                 line.classList.toggle('highlighted', connected);
@@ -791,6 +816,7 @@
         }
 
         function clearConnectionHighlight() {
+            if (!connectionsVisible) return;
             connectionLines.querySelectorAll('.dependency-line').forEach(line => line.classList.remove('highlighted', 'muted'));
         }
 
@@ -799,10 +825,12 @@
             const missing = cards.reduce((total, card) => total + dependenciesFor(card)
                 .filter(id => !cardElements.has(String(id))).length, 0);
             const missingText = missing ? ` ${missing} unresolved ${missing === 1 ? 'dependency' : 'dependencies'}.` : '';
-            const connectionText = connectionCount === totalConnectionCount
-                ? `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
-                : `${connectionCount} of ${totalConnectionCount} connections shown`;
-            const parkedText = dockElements.size
+            const connectionText = !connectionsVisible
+                ? 'dependencies hidden'
+                : (connectionCount === totalConnectionCount
+                    ? `${connectionCount} ${connectionCount === 1 ? 'connection' : 'connections'}`
+                    : `${connectionCount} of ${totalConnectionCount} connections shown`);
+            const parkedText = connectionsVisible && dockElements.size
                 ? ` · ${dockElements.size} parked ${dockElements.size === 1 ? 'card' : 'cards'}`
                 : '';
             status.textContent = `${cards.length} ${cards.length === 1 ? 'card' : 'cards'} in ${laneCount} ${laneCount === 1 ? 'lane' : 'lanes'} · ${connectionText}${parkedText}.${missingText}`;
@@ -826,11 +854,10 @@
         }
 
         document.getElementById('refresh').addEventListener('click', loadBoard);
-        document.getElementById('toggle-connections').addEventListener('click', event => {
+        document.getElementById('toggle-connections').addEventListener('click', () => {
             connectionsVisible = !connectionsVisible;
-            connections.hidden = !connectionsVisible;
-            event.currentTarget.setAttribute('aria-pressed', String(connectionsVisible));
-            event.currentTarget.textContent = connectionsVisible ? 'Hide Dependencies' : 'Show Dependencies';
+            updateConnectionsVisibility();
+            scheduleConnections();
         });
         document.getElementById('modal-close').addEventListener('click', () => cardModal.close());
         cardModal.addEventListener('click', event => {
