@@ -27,5 +27,25 @@ class TestVisualizePage(unittest.TestCase):
         self.assertIn("scheduleConnections();", content)
 
 
+    def test_visualize_toggle_parked_cards(self):
+        response = self.client.get("/visualize")
+        self.assertEqual(response.status_code, 200)
+        content = response.text
+
+        # Ensure toggle button for parked cards is present
+        self.assertIn('id="toggle-parked-label"', content)
+
+        # Ensure parked card label helpers and update functions exist
+        self.assertIn("getParkedCardLabel", content)
+        self.assertIn("updateParkedCardsDisplay", content)
+
+        # Ensure parked card toggle event listener calls display update and schedules redraw
+        self.assertIn("updateParkedCardsDisplay();", content)
+        self.assertIn("scheduleConnections();", content)
+
+        # Ensure syncOffscreenDocks uses getParkedCardLabel
+        self.assertIn("getParkedCardLabel(cardId", content)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -340,6 +340,7 @@
             <a id="control-panel">Control Panel</a>
             <a id="graph-canvas">Graph Canvas</a>
             <button id="toggle-connections" type="button" aria-pressed="true">Hide Dependencies</button>
+            <button id="toggle-parked-label" class="toggle-parked" data-action="toggle-parked" type="button" aria-pressed="false">Show Parked IDs</button>
             <button id="refresh" type="button">Refresh</button>
         </div>
     </header>
@@ -413,6 +414,7 @@
         let connectionCount = 0;
         let totalConnectionCount = 0;
         let connectionsVisible = true;
+        let parkedCardDisplay = 'title';
         let drawFrame = null;
         let loadRequestId = 0;
 
@@ -653,7 +655,9 @@
             const activeProxies = new Map();
             for (const [cardId, position] of parkingMap.entries()) {
                 if (dockElements.has(cardId)) {
-                    activeProxies.set(cardId, dockElements.get(cardId).proxy);
+                    const existing = dockElements.get(cardId);
+                    existing.proxy.textContent = getParkedCardLabel(cardId, cardPresentations.get(cardId));
+                    activeProxies.set(cardId, existing.proxy);
                 } else {
                     const cardElement = cardElements.get(cardId);
                     const card = cardDataById.get(cardId);
@@ -663,7 +667,7 @@
                     const dock = lane.querySelector(`.offscreen-dock.${position} .dock-items`);
                     if (!dock) continue;
 
-                    const proxy = createElement('button', 'offscreen-card', presentation.title);
+                    const proxy = createElement('button', 'offscreen-card', getParkedCardLabel(cardId, presentation));
                     proxy.type = 'button';
                     proxy.dataset.cardId = cardId;
                     proxy.title = `${presentation.title} (${cardId})`;
@@ -709,6 +713,28 @@
             if (toggleButton) {
                 toggleButton.setAttribute('aria-pressed', String(connectionsVisible));
                 toggleButton.textContent = connectionsVisible ? 'Hide Dependencies' : 'Show Dependencies';
+            }
+        }
+
+        function getParkedCardLabel(cardId, presentation) {
+            if (parkedCardDisplay === 'id') {
+                return cardId;
+            }
+            return (presentation && presentation.title) || cardId;
+        }
+
+        function updateParkedCardsDisplay() {
+            const toggleButton = document.getElementById('toggle-parked-label') || document.getElementById('toggle-parked');
+            if (toggleButton) {
+                const showingId = parkedCardDisplay === 'id';
+                toggleButton.setAttribute('aria-pressed', String(showingId));
+                toggleButton.textContent = showingId ? 'Show Parked Titles' : 'Show Parked IDs';
+            }
+            for (const [cardId, proxyInfo] of dockElements.entries()) {
+                const presentation = cardPresentations.get(cardId);
+                if (presentation && proxyInfo.proxy) {
+                    proxyInfo.proxy.textContent = getParkedCardLabel(cardId, presentation);
+                }
             }
         }
 
@@ -859,6 +885,14 @@
             updateConnectionsVisibility();
             scheduleConnections();
         });
+        const toggleParkedButton = document.getElementById('toggle-parked-label') || document.getElementById('toggle-parked');
+        if (toggleParkedButton) {
+            toggleParkedButton.addEventListener('click', () => {
+                parkedCardDisplay = parkedCardDisplay === 'id' ? 'title' : 'id';
+                updateParkedCardsDisplay();
+                scheduleConnections();
+            });
+        }
         document.getElementById('modal-close').addEventListener('click', () => cardModal.close());
         cardModal.addEventListener('click', event => {
             if (event.target === cardModal) cardModal.close();
